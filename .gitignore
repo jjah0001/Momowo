@@ -1,0 +1,6 @@
+.DS_Store
+.Rhistory
+build/
+*.elf
+*.map
+old_headers_backup/
