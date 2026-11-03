@@ -189,7 +189,9 @@ Song picks need the AI (section 9) or a Spotify app. With both, the AI picks and
 2. The browser then opens a page that doesn't load. That's expected. Copy that page's whole address (it starts with `http://127.0.0.1`).
 3. Go back to Momowo's page, paste the address and tap **Link**.
 
-After that, each new song goes into *Momowo picks*. Tap **Fill my playlist with 10 songs now** for a whole playlist at once. You can stop adding songs, or unlink your account, on the same page at any time. Momowo keeps your Spotify secret and sign-in to itself and never shows them on the page.
+After that, each new song goes into *Momowo picks*. Tap **Fill my playlist with 10 songs now** for a whole playlist at once. You can stop adding songs, or unlink your account, on the same page at any time.
+
+**Learning your taste from Spotify.** Once your account is linked, Momowo reads your own playlists, your top artists and what you played lately (song titles and artists only), once a day. It counts the artists you come back to most and shows them on the phone page under *You play a lot of*. The AI then suggests songs you'll probably love but don't have yet. So typing your music taste is optional: if you type something too, Momowo uses both. Tap **Learn from my Spotify now** after you add new music, or untick *Learn my taste from my Spotify* to stop it and forget what it learned. If you linked your account before this feature arrived, unlink it and connect again so Momowo may read your playlists. Momowo keeps your Spotify secret and sign-in to itself and never shows them on the page.
 
 ### Focus
 
@@ -361,7 +363,7 @@ Building or repairing a Momowo yourself? See the separate **Momowo Build Guide**
 
 ### 4. 各个页面
 
-依次是：**眼睛**（心情、问候和小提示）、**时钟**（开启伊斯兰历时轮流显示礼拜时间）、**日历**（农历、伊斯兰历、佛历、印度历、犹太历及节假日）、**天气**（含空气质量）、**新闻**（由你选的角色播报）、**名言**（原文显示，再显示翻译或解释）、**歌曲**（按你的音乐喜好和当下推荐一首歌，只显示歌名和歌手；长按或摇一摇换一首。需要 AI 密钥或 Spotify 应用；在手机设置页连接 Spotify 账号后，每首推荐都会加入你的私人歌单“Momowo picks”）和**专注计时**（含呼吸练习）。90 秒后会自动回到眼睛页。为了保护屏幕，脸会不时轻微移动，20 分钟没人碰时屏幕会变暗。夜里它会睡觉、变暗并保持安静。
+依次是：**眼睛**（心情、问候和小提示）、**时钟**（开启伊斯兰历时轮流显示礼拜时间）、**日历**（农历、伊斯兰历、佛历、印度历、犹太历及节假日）、**天气**（含空气质量）、**新闻**（由你选的角色播报）、**名言**（原文显示，再显示翻译或解释）、**歌曲**（按你的音乐喜好和当下推荐一首歌，只显示歌名和歌手；长按或摇一摇换一首。需要 AI 密钥或 Spotify 应用；在手机设置页连接 Spotify 账号后，每首推荐都会加入你的私人歌单“Momowo picks”，并每天从你的歌单、常听歌手和最近播放学习你的喜好，所以音乐喜好可以不填）和**专注计时**（含呼吸练习）。90 秒后会自动回到眼睛页。为了保护屏幕，脸会不时轻微移动，20 分钟没人碰时屏幕会变暗。夜里它会睡觉、变暗并保持安静。
 
 ### 5. 小游戏
 
@@ -421,7 +423,7 @@ Building or repairing a Momowo yourself? See the separate **Momowo Build Guide**
 
 ### 4. 各個頁面
 
-依序是：**眼睛**（心情、問候和小提示）、**時鐘**（開啟伊斯蘭曆時輪流顯示禮拜時間）、**日曆**（農曆、伊斯蘭曆、佛曆、印度曆、猶太曆及假日）、**天氣**（含空氣品質）、**新聞**（由你選的角色播報）、**名言**（先顯示原文，再顯示翻譯或解釋）、**歌曲**（按你的音樂喜好和當下推薦一首歌，只顯示歌名和歌手；長按或搖一搖換一首。需要 AI 金鑰或 Spotify 應用；在手機設定頁連接 Spotify 帳號後，每首推薦都會加入你的私人歌單「Momowo picks」）和**專注計時**（含呼吸練習）。90 秒後會自動回到眼睛頁。為了保護螢幕，臉會不時輕微移動，20 分鐘沒人碰時螢幕會變暗。晚上它會睡覺、變暗並保持安靜。
+依序是：**眼睛**（心情、問候和小提示）、**時鐘**（開啟伊斯蘭曆時輪流顯示禮拜時間）、**日曆**（農曆、伊斯蘭曆、佛曆、印度曆、猶太曆及假日）、**天氣**（含空氣品質）、**新聞**（由你選的角色播報）、**名言**（先顯示原文，再顯示翻譯或解釋）、**歌曲**（按你的音樂喜好和當下推薦一首歌，只顯示歌名和歌手；長按或搖一搖換一首。需要 AI 金鑰或 Spotify 應用；在手機設定頁連接 Spotify 帳號後，每首推薦都會加入你的私人歌單「Momowo picks」，並每天從你的歌單、常聽歌手和最近播放學習你的喜好，所以音樂喜好可以不填）和**專注計時**（含呼吸練習）。90 秒後會自動回到眼睛頁。為了保護螢幕，臉會不時輕微移動，20 分鐘沒人碰時螢幕會變暗。晚上它會睡覺、變暗並保持安靜。
 
 ### 5. 小遊戲
 
@@ -481,7 +483,7 @@ Nanti, dari Wi-Fi yang sama, buka alamat yang tampil di layar Momowo (misalnya `
 
 ### 4. Halaman
 
-Urutannya: **Mata** (perasaan, salam dan info singkat), **Jam** (dengan waktu salat jika kalender Islam aktif), **Kalender** (Imlek, Hijriah, Buddha, Hindu, Yahudi dan hari libur), **Cuaca** (termasuk kualitas udara), **Berita** (dibacakan tokoh pilihan Anda), **Kutipan** (bahasa asli, lalu terjemahan atau penjelasan), **Lagu** (satu lagu yang cocok dengan selera musik Anda dan suasana saat itu, hanya judul dan penyanyi; tahan atau goyangkan untuk lagu lain. Perlu kunci AI atau aplikasi Spotify; jika akun Spotify dihubungkan di halaman ponsel, setiap lagu masuk ke playlist pribadi "Momowo picks") dan **Fokus** (dengan latihan napas). Setelah 90 detik Momowo kembali ke mata. Untuk menjaga layar, wajahnya bergeser sedikit dari waktu ke waktu dan layar meredup jika 20 menit tidak disentuh. Malam hari Momowo tidur, meredup dan diam.
+Urutannya: **Mata** (perasaan, salam dan info singkat), **Jam** (dengan waktu salat jika kalender Islam aktif), **Kalender** (Imlek, Hijriah, Buddha, Hindu, Yahudi dan hari libur), **Cuaca** (termasuk kualitas udara), **Berita** (dibacakan tokoh pilihan Anda), **Kutipan** (bahasa asli, lalu terjemahan atau penjelasan), **Lagu** (satu lagu yang cocok dengan selera musik Anda dan suasana saat itu, hanya judul dan penyanyi; tahan atau goyangkan untuk lagu lain. Perlu kunci AI atau aplikasi Spotify; jika akun Spotify dihubungkan di halaman ponsel, setiap lagu masuk ke playlist pribadi "Momowo picks", dan Momowo belajar selera Anda setiap hari dari playlist, artis teratas dan lagu yang baru diputar, jadi selera musik boleh dikosongkan) dan **Fokus** (dengan latihan napas). Setelah 90 detik Momowo kembali ke mata. Untuk menjaga layar, wajahnya bergeser sedikit dari waktu ke waktu dan layar meredup jika 20 menit tidak disentuh. Malam hari Momowo tidur, meredup dan diam.
 
 ### 5. Permainan
 
@@ -541,7 +543,7 @@ Später öffnen Sie im selben WLAN die Adresse, die Momowo anzeigt (zum Beispiel
 
 ### 4. Die Seiten
 
-Der Reihe nach: **Augen** (Stimmung, Grüße, kurze Infos), **Uhr** (mit Gebetszeiten, wenn der islamische Kalender an ist), **Kalender** (chinesisch, islamisch, buddhistisch, hinduistisch, jüdisch und Feiertage), **Wetter** (mit Luftqualität), **Nachrichten** (gelesen von einer Figur Ihrer Wahl), **Zitat** (im Original, dann Übersetzung oder Erklärung), **Lieder** (ein Lied passend zu Ihrem Musikgeschmack und zum Moment, nur Titel und Künstler; halten oder schütteln für ein anderes. Braucht einen KI-Schlüssel oder eine Spotify-App; ist Ihr Spotify-Konto auf der Handy-Seite verbunden, kommt jedes Lied in Ihre private Playlist „Momowo picks“) und **Fokus** (mit Atemübung). Nach 90 Sekunden kehrt Momowo zu den Augen zurück. Zum Schutz des Bildschirms wandert das Gesicht ab und zu ein wenig, und nach 20 Minuten ohne Berührung wird der Bildschirm dunkler. Nachts schläft Momowo, wird dunkel und bleibt still.
+Der Reihe nach: **Augen** (Stimmung, Grüße, kurze Infos), **Uhr** (mit Gebetszeiten, wenn der islamische Kalender an ist), **Kalender** (chinesisch, islamisch, buddhistisch, hinduistisch, jüdisch und Feiertage), **Wetter** (mit Luftqualität), **Nachrichten** (gelesen von einer Figur Ihrer Wahl), **Zitat** (im Original, dann Übersetzung oder Erklärung), **Lieder** (ein Lied passend zu Ihrem Musikgeschmack und zum Moment, nur Titel und Künstler; halten oder schütteln für ein anderes. Braucht einen KI-Schlüssel oder eine Spotify-App; ist Ihr Spotify-Konto auf der Handy-Seite verbunden, kommt jedes Lied in Ihre private Playlist „Momowo picks“, und Momowo lernt täglich Ihren Geschmack aus Ihren Playlists, Top-Künstlern und zuletzt gehörten Liedern, der Musikgeschmack ist dann freiwillig) und **Fokus** (mit Atemübung). Nach 90 Sekunden kehrt Momowo zu den Augen zurück. Zum Schutz des Bildschirms wandert das Gesicht ab und zu ein wenig, und nach 20 Minuten ohne Berührung wird der Bildschirm dunkler. Nachts schläft Momowo, wird dunkel und bleibt still.
 
 ### 5. Spiele
 
@@ -601,7 +603,7 @@ Plus tard, sur le même Wi-Fi, ouvrez dans le navigateur l’adresse affichée p
 
 ### 4. Les pages
 
-Dans l’ordre : **Yeux** (humeur, salutations, infos), **Horloge** (avec les heures de prière si le calendrier islamique est activé), **Calendrier** (chinois, islamique, bouddhiste, hindou, juif et jours fériés), **Météo** (avec la qualité de l’air), **Actualités** (lues par le personnage de votre choix), **Citation** (dans la langue d’origine, puis traduction ou explication), **Chansons** (une chanson selon vos goûts musicaux et le moment, seulement le titre et l’artiste ; appui long ou secousse pour une autre. Il faut une clé IA ou une app Spotify ; si votre compte Spotify est relié sur la page téléphone, chaque chanson rejoint votre playlist privée « Momowo picks ») et **Concentration** (avec respiration guidée). Après 90 secondes, Momowo revient aux yeux. Pour protéger l’écran, le visage se déplace un peu de temps en temps et l’écran baisse après 20 minutes sans contact. La nuit, Momowo dort, baisse l’écran et reste silencieux.
+Dans l’ordre : **Yeux** (humeur, salutations, infos), **Horloge** (avec les heures de prière si le calendrier islamique est activé), **Calendrier** (chinois, islamique, bouddhiste, hindou, juif et jours fériés), **Météo** (avec la qualité de l’air), **Actualités** (lues par le personnage de votre choix), **Citation** (dans la langue d’origine, puis traduction ou explication), **Chansons** (une chanson selon vos goûts musicaux et le moment, seulement le titre et l’artiste ; appui long ou secousse pour une autre. Il faut une clé IA ou une app Spotify ; si votre compte Spotify est relié sur la page téléphone, chaque chanson rejoint votre playlist privée « Momowo picks », et Momowo apprend chaque jour vos goûts à partir de vos playlists, artistes préférés et écoutes récentes, les goûts musicaux deviennent alors facultatifs) et **Concentration** (avec respiration guidée). Après 90 secondes, Momowo revient aux yeux. Pour protéger l’écran, le visage se déplace un peu de temps en temps et l’écran baisse après 20 minutes sans contact. La nuit, Momowo dort, baisse l’écran et reste silencieux.
 
 ### 5. Jeux
 
@@ -661,7 +663,7 @@ Dans la section **IA** de la page de réglages, choisissez un service (Claude, C
 
 ### 4. ページ
 
-順番に：**目**（気分、あいさつ、ひとこと）、**時計**（イスラム暦をオンにすると礼拝時刻も）、**カレンダー**（旧暦、イスラム暦、仏暦、ヒンドゥー暦、ユダヤ暦と祝日）、**天気**（空気の質つき）、**ニュース**（選んだキャラクターが読み上げ）、**名言**（原文のあとに訳か解説）、**ソング**（好きな音楽とその時に合う曲をおすすめ。曲名とアーティストだけ表示。長押しかふると別の曲に。AI キーか Spotify アプリが必要。スマホの設定ページで Spotify アカウントをつなぐと、おすすめが非公開プレイリスト「Momowo picks」に入ります）、**集中**（呼吸ガイドつき）。90 秒たつと目の画面にもどります。画面を長持ちさせるため、顔はときどき少し動き、20 分さわらないと画面が暗くなります。夜は眠って暗くなり、静かにしています。
+順番に：**目**（気分、あいさつ、ひとこと）、**時計**（イスラム暦をオンにすると礼拝時刻も）、**カレンダー**（旧暦、イスラム暦、仏暦、ヒンドゥー暦、ユダヤ暦と祝日）、**天気**（空気の質つき）、**ニュース**（選んだキャラクターが読み上げ）、**名言**（原文のあとに訳か解説）、**ソング**（好きな音楽とその時に合う曲をおすすめ。曲名とアーティストだけ表示。長押しかふると別の曲に。AI キーか Spotify アプリが必要。スマホの設定ページで Spotify アカウントをつなぐと、おすすめが非公開プレイリスト「Momowo picks」に入り、毎日プレイリスト、よく聴くアーティスト、最近の再生から好みを学ぶので、好きな音楽の入力は任意です）、**集中**（呼吸ガイドつき）。90 秒たつと目の画面にもどります。画面を長持ちさせるため、顔はときどき少し動き、20 分さわらないと画面が暗くなります。夜は眠って暗くなり、静かにしています。
 
 ### 5. ゲーム
 
@@ -721,7 +723,7 @@ Más adelante, en la misma wifi, abre en el navegador la dirección que muestra 
 
 ### 4. Las páginas
 
-En orden: **Ojos** (ánimo, saludos y avisos), **Reloj** (con horarios de oración si el calendario islámico está activado), **Calendario** (chino, islámico, budista, hindú, judío y festivos), **Tiempo** (con calidad del aire), **Noticias** (leídas por el personaje que elijas), **Frase** (en su idioma original y luego traducción o explicación), **Canciones** (una canción según tus gustos musicales y el momento, solo título y artista; mantén pulsado o agita para otra. Necesita una clave de IA o una app de Spotify; si vinculas tu cuenta de Spotify en la página del móvil, cada canción se añade a tu lista privada «Momowo picks») y **Concentración** (con respiración guiada). A los 90 segundos vuelve a los ojos. Para cuidar la pantalla, la cara se mueve un poco de vez en cuando y la pantalla se atenúa tras 20 minutos sin tocarlo. De noche Momowo duerme, se atenúa y se queda en silencio.
+En orden: **Ojos** (ánimo, saludos y avisos), **Reloj** (con horarios de oración si el calendario islámico está activado), **Calendario** (chino, islámico, budista, hindú, judío y festivos), **Tiempo** (con calidad del aire), **Noticias** (leídas por el personaje que elijas), **Frase** (en su idioma original y luego traducción o explicación), **Canciones** (una canción según tus gustos musicales y el momento, solo título y artista; mantén pulsado o agita para otra. Necesita una clave de IA o una app de Spotify; si vinculas tu cuenta de Spotify en la página del móvil, cada canción se añade a tu lista privada «Momowo picks», y Momowo aprende cada día tus gustos de tus listas, artistas top y escuchas recientes, así que escribir tus gustos es opcional) y **Concentración** (con respiración guiada). A los 90 segundos vuelve a los ojos. Para cuidar la pantalla, la cara se mueve un poco de vez en cuando y la pantalla se atenúa tras 20 minutos sin tocarlo. De noche Momowo duerme, se atenúa y se queda en silencio.
 
 ### 5. Juegos
 

@@ -123,6 +123,9 @@ static char SPOTIFY_SECRET[48] = "";
 static char SPOTIFY_REFRESH[256] = "";  // set once the owner links their Spotify account
 static char SPOTIFY_PLAYLIST[32] = "";  // their "Momowo picks" playlist
 static bool SPOTIFY_ADD = true;         // add each pick to that playlist
+static bool SPOTIFY_LEARN = true;       // learn the owner's taste from their own Spotify listening
+static char SPOTIFY_LEARNED[200] = "";  // the artists they play most (learned, once a day)
+static char SPOTIFY_SAMPLE[600] = "";   // some songs they already have, for the AI
 
 static bool    NEWS_TRANSLATE = false;  // AI translates the headlines into Momowo's language
 static uint8_t NEWS_STYLE     = 0;      // AI summary: 0 one sentence, 1 a short news-of-the-day bulletin
@@ -422,6 +425,7 @@ static volatile bool gReqQuote = false;
 static volatile bool gReqSong = false;       // a new song, now (a hold on the Songs page)
 static volatile bool gSongSeen = false;      // the Songs page was looked at since the last pick
 static volatile bool gReqSongFill = false;   // phone page: fill the Spotify playlist
+static volatile bool gReqLearn = false;      // phone page or a new link: learn from their Spotify now
 static volatile uint8_t gSongAddedN = 0;     // songs just added to the playlist, for the screen
 static char gSpCode[400] = "";               // Spotify's sign-in code from the phone page (gMutex)
 static char gSpStatus[24] = "";              // Spotify state for the phone page: linked, badcode, filled:N ...
@@ -2239,6 +2243,7 @@ static void spotifyLink() {
   }
   strlcpy(gSpStatus, "linked", sizeof(gSpStatus));
   Serial.println("[spotify] account linked");
+  gReqLearn = true;                         // learn their taste right away
 }
 
 // Search Spotify; tracks Momowo can show, at most maxOut. netTask.
@@ -2336,8 +2341,22 @@ static int aiSongs(int want, SongRec* out, char* why, size_t whyN) {
   p += want > 1 ? "Recommend " : "Recommend one song ";
   if (want > 1) { p += want; p += " different songs "; }
   p += "for your owner. Their music taste: ";
-  p += SONG_TASTE[0] ? SONG_TASTE : "not given yet, so choose well-loved songs from many countries and decades";
+  char learned[sizeof(SPOTIFY_LEARNED)], sample[sizeof(SPOTIFY_SAMPLE)];
+  xSemaphoreTake(gMutex, portMAX_DELAY);
+  strlcpy(learned, SPOTIFY_LEARN ? SPOTIFY_LEARNED : "", sizeof(learned));
+  strlcpy(sample, SPOTIFY_LEARN ? SPOTIFY_SAMPLE : "", sizeof(sample));
+  xSemaphoreGive(gMutex);
+  p += SONG_TASTE[0] ? SONG_TASTE : learned[0] ? "not typed, so go by their own listening below"
+                     : "not given yet, so choose well-loved songs from many countries and decades";
   p += ". ";
+  if (learned[0]) {
+    p += "From their own Spotify (playlists, top artists, recent plays) the artists they play most are: ";
+    p += learned;
+    p += ". ";
+    if (sample[0]) { p += "Songs they already have include: "; p += sample; p += ". "; }
+    p += "Suggest songs they would likely love but probably don't have yet: mostly by these or similar artists, "
+         "sometimes a discovery in the same spirit. ";
+  }
   if (OWNER_HOBBIES[0]) { p += "Their hobbies, as a light hint only: "; p += OWNER_HOBBIES; p += ". "; }
   p += ctx;
   p += want > 1 ? "Make it a varied playlist that fits their taste. "
@@ -2412,6 +2431,15 @@ static int spotifySongs(int want, SongRec* out, char* why, size_t whyN) {
       s = e + (c == ',' || c == ';' || c == '/' ? 1 : 3);
     }
   }
+  if (SPOTIFY_LEARN && SPOTIFY_LEARNED[0]) {   // the artists they play most
+    char buf[sizeof(SPOTIFY_LEARNED)];
+    strlcpy(buf, SPOTIFY_LEARNED, sizeof(buf));
+    char* save = nullptr;
+    for (char* a = strtok_r(buf, ",", &save); a && nt < 8; a = strtok_r(nullptr, ",", &save)) {
+      while (*a == ' ') a++;
+      if (*a) snprintf(terms[nt++], sizeof(terms[0]), "artist:\"%s\"", a);
+    }
+  }
   struct tm t;
   if (!nt) {                                // no taste given: music for the moment
     int h = nowTm(t) ? t.tm_hour : 12;
@@ -2435,11 +2463,17 @@ static int spotifySongs(int want, SongRec* out, char* why, size_t whyN) {
       utf8Copy(out[n].a, c.artist, sizeof(out[n].a));
       strlcpy(out[n].id, c.id, sizeof(out[n].id));
       n++;
-      if (want == 1 && SONG_TASTE[0]) snprintf(why, whyN, T(S_SONG_LIKE), term);
+      if (want == 1 && strncmp(term, "artist:", 7) && SONG_TASTE[0]) snprintf(why, whyN, T(S_SONG_LIKE), term);
+      else if (want == 1 && !strncmp(term, "artist:", 7)) {   // one of the artists they play most
+        char who[40];
+        strlcpy(who, term + 8, sizeof(who));
+        if (char* q = strrchr(who, '"')) *q = 0;
+        snprintf(why, whyN, T(S_SONG_LIKE), who);
+      }
       break;                                // one per search: a mix of the favourites
     }
   }
-  if (want > 1 || !SONG_TASTE[0]) why[0] = 0;
+  if (want > 1) why[0] = 0;
   return n;
 }
 
@@ -2504,6 +2538,128 @@ static int spotifyAdd(const SongRec* s, int n) {   // returns how many went in. 
     }
   }
   return 0;
+}
+
+// ---- Learning the owner's taste from their own Spotify: their playlists, top artists and
+// recently played songs (titles and artists only). Counted on Momowo, once a day. netTask.
+static const int LEARN_ARTISTS = 120;
+static char sLrnName[LEARN_ARTISTS][64];
+static uint16_t sLrnCount[LEARN_ARTISTS];
+static int sLrnN = 0;
+static int sLrnSongs = 0;
+
+static void learnArtist(const char* a, int weight) {
+  if (!a[0] || !songCanShow(a)) return;
+  for (int i = 0; i < sLrnN; i++)
+    if (songSame(sLrnName[i], a)) { sLrnCount[i] += weight; return; }
+  if (sLrnN >= LEARN_ARTISTS) return;
+  utf8Copy(sLrnName[sLrnN], a, sizeof(sLrnName[0]));
+  sLrnCount[sLrnN++] = weight;
+}
+
+static void learnSong(const char* t, const char* a, char* sample, size_t n, int& kept) {
+  if (!t[0] || !a[0]) return;
+  learnArtist(a, 1);
+  sLrnSongs++;
+  // a spread of songs for the AI, as examples of what they already have
+  if (kept < 15 && songCanShow(t) && (esp_random() % 4 == 0 || sLrnSongs < 5)) {
+    char one[140];
+    snprintf(one, sizeof(one), "%s%s - %s", kept ? "; " : "", t, a);
+    if (strlen(sample) + strlen(one) < n) { strlcat(sample, one, n); kept++; }
+  }
+}
+
+// GET a Spotify list of tracks; `items[].track` (or the newer `items[].item`) name and first artist
+static int learnTracks(const char* url, char* sample, size_t n, int& kept) {
+  JsonDocument filter;
+  for (const char* k : {"track", "item"}) {
+    filter["items"][0][k]["name"] = true;
+    filter["items"][0][k]["artists"][0]["name"] = true;
+  }
+  JsonDocument d;
+  int code = spHttp("GET", url, sSpTok, nullptr, nullptr, &d, &filter);
+  if (code != 200) return code;
+  for (JsonObject it : d["items"].as<JsonArray>()) {
+    JsonObject tr = it["track"].is<JsonObject>() ? it["track"].as<JsonObject>() : it["item"].as<JsonObject>();
+    learnSong(tr["name"] | "", tr["artists"][0]["name"] | "", sample, n, kept);
+  }
+  return 200;
+}
+
+static bool learnTaste() {
+  if (!SPOTIFY_LEARN || !spotifyToken(true)) return false;
+  sLrnN = 0;
+  sLrnSongs = 0;
+  static char sample[700];
+  sample[0] = 0;
+  int kept = 0;
+  bool denied = false;
+
+  // 1) Their own playlists (not Momowo's), up to 6, 50 songs each
+  JsonDocument pf;
+  pf["items"][0]["id"] = true;
+  pf["items"][0]["name"] = true;
+  JsonDocument pl;
+  int code = spHttp("GET", "https://api.spotify.com/v1/me/playlists?limit=20", sSpTok, nullptr, nullptr, &pl, &pf);
+  if (code == 401 || code == 403) denied = true;
+  if (code == 200) {
+    int used = 0;
+    for (JsonObject p : pl["items"].as<JsonArray>()) {
+      const char* id = p["id"] | "";
+      if (!id[0] || !strcmp(id, SPOTIFY_PLAYLIST) || used >= 6) continue;
+      used++;
+      for (const char* route : {"/items", "/tracks"}) {
+        String url = "https://api.spotify.com/v1/playlists/";
+        urlEncodeTo(id, url);
+        url += route;
+        url += "?limit=50";
+        int c = learnTracks(url.c_str(), sample, sizeof(sample), kept);
+        if (c == 200 || (c != 404 && c != 405)) break;
+      }
+      vTaskDelay(pdMS_TO_TICKS(50));
+    }
+  }
+
+  // 2) Their top artists (counted extra), 3) what they played lately
+  JsonDocument af;
+  af["items"][0]["name"] = true;
+  JsonDocument ta;
+  code = spHttp("GET", "https://api.spotify.com/v1/me/top/artists?limit=20&time_range=medium_term", sSpTok,
+                nullptr, nullptr, &ta, &af);
+  if (code == 403) denied = true;
+  if (code == 200) {
+    int rank = 0;
+    for (JsonObject a : ta["items"].as<JsonArray>()) learnArtist(a["name"] | "", max(2, 12 - rank++));
+  }
+  code = learnTracks("https://api.spotify.com/v1/me/player/recently-played?limit=50", sample, sizeof(sample), kept);
+  if (code == 403) denied = true;
+
+  if (!sLrnN) {
+    strlcpy(gSpStatus, denied ? "relink" : "learnnone", sizeof(gSpStatus));
+    return false;
+  }
+  // the artists they come back to most, most first
+  char top[sizeof(SPOTIFY_LEARNED)] = "";
+  bool used[LEARN_ARTISTS] = {};
+  for (int k = 0; k < 15; k++) {
+    int best = -1;
+    for (int i = 0; i < sLrnN; i++)
+      if (!used[i] && (best < 0 || sLrnCount[i] > sLrnCount[best])) best = i;
+    if (best < 0) break;
+    used[best] = true;
+    if (strlen(top) + strlen(sLrnName[best]) + 3 >= sizeof(top)) break;
+    if (top[0]) strlcat(top, ", ", sizeof(top));
+    strlcat(top, sLrnName[best], sizeof(top));
+  }
+  xSemaphoreTake(gMutex, portMAX_DELAY);
+  strlcpy(SPOTIFY_LEARNED, top, sizeof(SPOTIFY_LEARNED));
+  utf8Copy(SPOTIFY_SAMPLE, sample, sizeof(SPOTIFY_SAMPLE));
+  xSemaphoreGive(gMutex);
+  prefs.putString("splearn", SPOTIFY_LEARNED);
+  prefs.putString("splsamp", SPOTIFY_SAMPLE);
+  snprintf(gSpStatus, sizeof(gSpStatus), denied ? "relink" : "learned:%d", sLrnSongs);
+  Serial.printf("[spotify] learned from %d songs: %s\n", sLrnSongs, top);
+  return true;
 }
 
 static void songRemember(const SongRec& s) {     // newest first, kept through power cuts. netTask.
@@ -3932,6 +4088,17 @@ static void netTask(void*) {
     // 4b) Songs: a new one on request, for a first look, every 3 h while the page is looked at, or
     //     after a language change. Spotify sign-in and "fill my playlist" from the phone page too.
     if (gSpCode[0]) spotifyLink();
+    {                                       // learn from their Spotify: soon after start-up, then daily
+      static uint32_t nextLearnAt = 120000;
+      if (SPOTIFY_LEARN && SPOTIFY_REFRESH[0] && gWifiUp && (gReqLearn || !notYet(now, nextLearnAt))) {
+        gReqLearn = false;
+        nextLearnAt = now + (learnTaste() ? 24UL * 3600000 : 3UL * 3600000);
+        if (!nextLearnAt) nextLearnAt = 1;
+      } else if (gReqLearn && (!SPOTIFY_REFRESH[0] || !gWifiUp)) {
+        gReqLearn = false;
+        strlcpy(gSpStatus, gWifiUp ? "nokeys" : "offline", sizeof(gSpStatus));
+      }
+    }
     if (gReqSongFill) {
       gReqSongFill = false;
       if (gWifiUp) { gAiForUser = true; fillPlaylist(); gAiForUser = false; }
@@ -5993,6 +6160,9 @@ static void loadSettings() {
   getStr("sppl", SPOTIFY_PLAYLIST, sizeof(SPOTIFY_PLAYLIST));
   SONGS_ON = prefs.getBool("songon", SONGS_ON);
   SPOTIFY_ADD = prefs.getBool("spadd", SPOTIFY_ADD);
+  SPOTIFY_LEARN = prefs.getBool("splearnon", SPOTIFY_LEARN);
+  getStr("splearn", SPOTIFY_LEARNED, sizeof(SPOTIFY_LEARNED));
+  getStr("splsamp", SPOTIFY_SAMPLE, sizeof(SPOTIFY_SAMPLE));
   AI_PROVIDER = min<int>(prefs.getUChar("aiprovider", 0), 3);
   getStr(AI_KEY_PREFS[AI_PROVIDER], AI_API_KEY, sizeof(AI_API_KEY));
   getStr(AI_MODEL_PREFS[AI_PROVIDER], AI_MODEL_CUSTOM, sizeof(AI_MODEL_CUSTOM));
@@ -6085,6 +6255,8 @@ static void handleInfo() {
   d["hasSpSec"] = SPOTIFY_SECRET[0] != 0;
   d["spLinked"] = SPOTIFY_REFRESH[0] != 0;
   d["spadd"] = SPOTIFY_ADD;
+  d["splearnon"] = SPOTIFY_LEARN;
+  d["spLearned"] = SPOTIFY_LEARNED;
   d["spStatus"] = gSpStatus;
   d["spPlaylist"] = SPOTIFY_PLAYLIST;
   {
@@ -6190,8 +6362,12 @@ static void handleSave() {
   putStr("songlike", SONG_TASTE, sizeof(SONG_TASTE));
   if (d["songon"].is<bool>()) prefs.putBool("songon", d["songon"].as<bool>());
   if (d["spadd"].is<bool>())  prefs.putBool("spadd", d["spadd"].as<bool>());
+  if (d["splearnon"].is<bool>()) {
+    prefs.putBool("splearnon", d["splearnon"].as<bool>());
+    if (!d["splearnon"].as<bool>()) { prefs.remove("splearn"); prefs.remove("splsamp"); }   // forget what it learned
+  }
   if (d["spclear"] | false) {               // forget the Spotify app and the account link
-    for (const char* k : {"spid", "spsec", "sprt", "sppl"}) prefs.remove(k);
+    for (const char* k : {"spid", "spsec", "sprt", "sppl", "splearn", "splsamp"}) prefs.remove(k);
   }
   if (d["spid"].is<const char*>() && *d["spid"].as<const char*>()) putStr("spid", SPOTIFY_ID, sizeof(SPOTIFY_ID));
   if (d["spsec"].is<const char*>() && *d["spsec"].as<const char*>()) putStr("spsec", SPOTIFY_SECRET, sizeof(SPOTIFY_SECRET));
@@ -6259,10 +6435,16 @@ static void handleSpotify() {
     if (!SPOTIFY_REFRESH[0]) { server.send(400, "text/plain", "Not linked"); return; }
     strlcpy(gSpStatus, "filling", sizeof(gSpStatus));
     gReqSongFill = true;
+  } else if (d["learn"] | false) {
+    if (!SPOTIFY_REFRESH[0]) { server.send(400, "text/plain", "Not linked"); return; }
+    strlcpy(gSpStatus, "learning", sizeof(gSpStatus));
+    gReqLearn = true;
   } else if (d["unlink"] | false) {
     SPOTIFY_REFRESH[0] = SPOTIFY_PLAYLIST[0] = 0;
-    prefs.remove("sprt");
-    prefs.remove("sppl");
+    xSemaphoreTake(gMutex, portMAX_DELAY);
+    SPOTIFY_LEARNED[0] = SPOTIFY_SAMPLE[0] = 0;
+    xSemaphoreGive(gMutex);
+    for (const char* k : {"sprt", "sppl", "splearn", "splsamp"}) prefs.remove(k);
     gSpStatus[0] = 0;
   }
   server.send(200, "application/json", "{\"ok\":true}");
