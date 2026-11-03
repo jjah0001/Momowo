@@ -7145,7 +7145,8 @@ static void questTick(uint32_t now) {
     if (fabsf(tx) < 0.3f && fabsf(ty) < 0.3f) gGame.qarmed = true;
     return;
   }
-  const float v[4] = {-tx, tx, -ty, ty};    // left, right, up, down: the way star roll's ball rolls
+  const float v[4] = {tx, -tx, ty, -ty};    // left, right, up, down: flipped like star roll, since the
+                                            // sensor sits the other way round in the case
   const uint8_t k = want - QA_LEFT;
   if (v[k] > 0.5f) { questResult(true, now); return; }
   for (uint8_t j = 0; j < 4; j++)
