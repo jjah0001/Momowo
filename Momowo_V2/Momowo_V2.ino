@@ -12,7 +12,7 @@
      WEATHER  Now, tomorrow, the next three days, sunrise and sunset; with the Islamic
               calendar on: prayer times, and imsak / iftar times for fasting
      NEWS     Headlines from any RSS feed; AI reporter sums up the news, can translate it
-     QUOTE    Classical Chinese, Ancient Greek or modern quotes; AI translates or explains
+     QUOTE    Classical Chinese, European or modern quotes; AI translates or explains
      FOCUS    Pomodoro timer with breaks, and a guided breathing exercise
      AI       Optional AI: feelings, translations, summaries, quote meanings
      MOTION   Optional MPU6050: pat or tap the case, shake, tilt, catch a drop
@@ -45,6 +45,7 @@
 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include "mbedtls/base64.h"                 // Spotify sign-in
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
@@ -61,7 +62,7 @@
 #include "qrcode.h"                       // Espressif QR encoder (part of core 3.x)
 #include "astro.h"                        // sun, moon, prayer times, Hindu calendar
 #include "motion.h"                       // MPU6050 driver and gestures
-#include "quotes.h"                       // Ancient Greek and modern quotes
+#include "quotes.h"                       // European and modern quotes
 #include "games.h"                        // the mini-games page for the phone
 #include "font_small.h"                   // tiny 8 px weekday letters for the month grid
 
@@ -108,11 +109,20 @@ static uint8_t PRAY_METHOD = 255;       // astro::METHODS index; 255 = automatic
 static bool    ASR_HANAFI  = false;     // Asr when shadows are twice an object's length
 static bool    PRAY_REMIND = true;      // a soft chime and a note at each prayer time
 
-// Quotes: one bit per source, any mix (QKind order): classical Chinese, Ancient Greek, modern,
+// Quotes: one bit per source, any mix (QKind order): classical Chinese, European, modern,
 // Bible, Quran, Torah, Dhammapada, famous people. Momowo takes turns. AI: 0 translate, 1 explain
 static uint16_t QUOTE_MASK = 1;
 static uint8_t QUOTE_AI  = 0;
 static char FAMOUS_PEOPLE[100] = "";    // the owner's own famous people: the AI picks their real quotes
+
+// Songs page: a song for the owner now and then (title and artist only, never lyrics)
+static bool SONGS_ON = true;            // the Songs page is in the page round
+static char SONG_TASTE[100] = "";       // favourite genres, artists, languages, eras (free text)
+static char SPOTIFY_ID[48] = "";        // the owner's own Spotify app (developer.spotify.com), optional
+static char SPOTIFY_SECRET[48] = "";
+static char SPOTIFY_REFRESH[256] = "";  // set once the owner links their Spotify account
+static char SPOTIFY_PLAYLIST[32] = "";  // their "Momowo picks" playlist
+static bool SPOTIFY_ADD = true;         // add each pick to that playlist
 
 static bool    NEWS_TRANSLATE = false;  // AI translates the headlines into Momowo's language
 static uint8_t NEWS_STYLE     = 0;      // AI summary: 0 one sentence, 1 a short news-of-the-day bulletin
@@ -123,7 +133,6 @@ static bool    MOTION_MIRROR = false;   // eyes look the wrong way when tilted? 
 
 // Buzzer on GPIO27. Passive buzzers play tunes; active ones can only beep.
 static const bool    BUZZER_PASSIVE   = true;
-static uint8_t       BUZZER_VOLUME    = 6;      // 1-10 (passive buzzer only)
 static uint8_t       NEWS_VOICE       = 0;      // AI news reporter, chosen on the phone page (see VOICES; 6 = own)
 static char NEWS_VOICE_OWN[64] = "";       // the owner's own reporter, described on the phone page
 static bool          TOUCH_CLICK      = true;   // tiny tick on every touch
@@ -224,11 +233,11 @@ class SseSink : public Stream {
 };
 
 // ============================ HARDWARE ===============================
-#if CONFIG_IDF_TARGET_ESP32C3    // ESP32-C3 SuperMini: avoids strapping pins 2, 8 and 9
+#if CONFIG_IDF_TARGET_ESP32C3    // ESP32-C3 SuperMini: matches PCB: SDA GPIO9, SCL GPIO8 (both strapping pins)
 #define TOUCH_PIN  3
 #define BUZZER_PIN 4
-#define OLED_SDA   5
-#define OLED_SCL   6
+#define OLED_SDA   9
+#define OLED_SCL   8
 #else                            // classic ESP32 dev board
 #define TOUCH_PIN  12    // NOTE: GPIO12 is a boot strapping pin, must be LOW at power-up
 #define BUZZER_PIN 27
@@ -252,6 +261,7 @@ Adafruit_SH1106G display(SCREEN_W, SCREEN_H, &Wire, -1);
 static const uint8_t CONTRAST_DAY   = 0x80;   // 0x00-0xFF
 static const uint8_t CONTRAST_NIGHT = 0x01;   // dimmed while buddy sleeps
 static const uint8_t CONTRAST_IDLE  = 0x20;   // daytime, nobody near for 20 min (saves the OLED)
+static const uint8_t CONTRAST_QR    = 0x30;   // setup QR code: a dimmer white square doesn't glare in phone cameras
 
 U8G2_FOR_ADAFRUIT_GFX u8f;                    // draws UTF-8 Chinese into the same buffer
 // One 14 px subset font (common GB2312 hanzi) for the quote and its source,
@@ -300,10 +310,10 @@ struct WeatherData {
   float pm25 = -1, pm10 = -1;
 };
 
-enum QKind : uint8_t { Q_CHINESE, Q_GREEK, Q_MODERN, Q_BIBLE, Q_QURAN, Q_TORAH, Q_DHAMMA, Q_FAMOUS, Q_KINDS };
+enum QKind : uint8_t { Q_CHINESE, Q_EUROPE, Q_MODERN, Q_BIBLE, Q_QURAN, Q_TORAH, Q_DHAMMA, Q_FAMOUS, Q_KINDS };
 struct QuoteData {
   QKind kind = Q_CHINESE;
-  char text[256] = "";      // raw UTF-8: Chinese, Greek or English
+  char text[256] = "";      // raw UTF-8, in the original language
   char author[96] = "";
   char tag[8] = "";         // theme shown beside the source, e.g. "雨"
   char meaning[320] = "";   // meaning, translation or explanation (AI or built-in), UTF-8
@@ -409,6 +419,19 @@ static WebServer server(80);
 static DNSServer dnsServer;
 static volatile bool gReqWeather = false;
 static volatile bool gReqQuote = false;
+static volatile bool gReqSong = false;       // a new song, now (a hold on the Songs page)
+static volatile bool gSongSeen = false;      // the Songs page was looked at since the last pick
+static volatile bool gReqSongFill = false;   // phone page: fill the Spotify playlist
+static volatile uint8_t gSongAddedN = 0;     // songs just added to the playlist, for the screen
+static char gSpCode[400] = "";               // Spotify's sign-in code from the phone page (gMutex)
+static char gSpStatus[24] = "";              // Spotify state for the phone page: linked, badcode, filled:N ...
+struct SongRec { char t[100]; char a[80]; char id[24]; };
+struct SpTrack { char name[100]; char artist[80]; char id[24]; };   // a Spotify search result
+static const int SONG_HIST = 8;
+static SongRec gSongHist[SONG_HIST];         // recent picks, newest first (netTask; the phone page reads them)
+static int gSongHistN = 0;
+struct SongPick { char title[100]; char artist[80]; char why[320]; char id[24]; uint32_t version; };
+static SongPick gSong = {};                  // the Songs page's song (gMutex)
 static volatile bool gReqNews = false;
 static NewsData gNews;
 
@@ -422,7 +445,7 @@ static volatile int32_t gTzSaid = 0;         // the offset the network last repo
 static volatile uint32_t gTzSaidVer = 0;
 
 // ============================ UI STATE ===============================
-enum Page : uint8_t { P_BUDDY, P_CLOCK, P_CAL, P_WEATHER, P_NEWS, P_QUOTE, P_FOCUS, P_COUNT };
+enum Page : uint8_t { P_BUDDY, P_CLOCK, P_CAL, P_WEATHER, P_NEWS, P_QUOTE, P_SONG, P_FOCUS, P_COUNT };
 enum Lang : uint8_t { L_EN, L_ZHS, L_ZHT, L_ID, L_DE, L_FR, L_JA, L_ES, L_COUNT };   // phone page order
 #include "lang.h"                           // screen labels in all eight languages: T(S_...)
 struct BuddhistDay { uint8_t m, d; Str name; };
@@ -1794,11 +1817,11 @@ static const Verse* verseList(QKind kind, int& count) {
   }
 }
 
-// The built-in English line for a Greek or scripture quote, found by its original text (nullptr: none)
+// The built-in English line for a European or scripture quote, found by its original text (nullptr: none)
 static const char* englishFor(QKind kind, const char* text) {
-  if (kind == Q_GREEK) {
-    for (auto& q : GREEK_QUOTES) if (!strcmp(q.text, text)) return q.english;
-    return nullptr;
+  if (kind == Q_EUROPE) {
+    const EuroQuote* q = europeQuote(text);
+    return q ? q->english : nullptr;
   }
   int count;
   const Verse* list = verseList(kind, count);
@@ -1807,11 +1830,17 @@ static const char* englishFor(QKind kind, const char* text) {
 }
 
 // Is the quote already in Momowo's language? Then the AI explains it instead of translating it.
-static bool quoteInMyLanguage(QKind kind) {
+static bool quoteInMyLanguage(QKind kind, const char* text = "") {
   if (kind == Q_CHINESE) return LANG == L_ZHS || LANG == L_ZHT;
   if (kind == Q_MODERN || kind == Q_BIBLE) return LANG == L_EN;   // English quotes
   if (kind >= Q_FAMOUS) return gQuote.lang == LANG;   // whatever language the AI found it in
-  return false;                             // Greek, Hebrew, Arabic, Pali
+  if (kind == Q_EUROPE) {                   // English, French, German or Spanish writers
+    const EuroQuote* q = europeQuote(text);
+    if (!q) return false;
+    return (q->lang == EL_ENGLISH && LANG == L_EN) || (q->lang == EL_FRENCH && LANG == L_FR) ||
+           (q->lang == EL_GERMAN && LANG == L_DE) || (q->lang == EL_SPANISH && LANG == L_ES);
+  }
+  return false;                             // Hebrew, Arabic, Pali
 }
 
 // Until the AI has translated it (or with no AI), the English line is the translation
@@ -1820,7 +1849,7 @@ static void englishFallback(QKind kind, const char* text, char* meaning, size_t 
   if (en && (QUOTE_AI == 0 || !AI_API_KEY[0])) utf8Copy(meaning, en, n);
 }
 
-// A Greek, modern or scripture quote in its original language, with its source
+// A European, modern or scripture quote in its original language, with its source
 static void setWorldQuote(QKind kind, const char* text, const char* who) {
   xSemaphoreTake(gMutex, portMAX_DELAY);
   gQuote.kind = kind;
@@ -1847,13 +1876,13 @@ static int pickSuited(const uint16_t* moods, int count, QTheme th, int last) {
   return idx[esp_random() % n];
 }
 
-static bool pickGreekQuote(QTheme th) {
+static bool pickEuropeQuote(QTheme th) {
+  static_assert(EUROPE_COUNT <= 64, "pickSuited looks at 64 quotes at most");
   static int last = -1;
-  uint16_t moods[GREEK_COUNT];
-  for (int i = 0; i < GREEK_COUNT; i++) moods[i] = GREEK_QUOTES[i].moods;
-  int i = last = pickSuited(moods, GREEK_COUNT, th, last);
-  const WorldQuote& q = GREEK_QUOTES[i];
-  setWorldQuote(Q_GREEK, q.text, greekWhoEnglish(q.who));
+  uint16_t moods[EUROPE_COUNT];
+  for (int i = 0; i < EUROPE_COUNT; i++) moods[i] = EUROPE_QUOTES[i].moods;
+  int i = last = pickSuited(moods, EUROPE_COUNT, th, last);
+  setWorldQuote(Q_EUROPE, EUROPE_QUOTES[i].text, EUROPE_QUOTES[i].who);
   return true;
 }
 
@@ -1881,7 +1910,7 @@ static bool pickModernQuote(QTheme th) {
 }
 
 // Online: a web quote for the theme; offline (or if the web doesn't answer): built-in.
-// Greek and modern quotes follow the owner's choice on the phone page ("a mix" takes turns).
+// European and modern quotes follow the owner's choice on the phone page ("a mix" takes turns).
 static bool pickVerse(QKind kind, QTheme th) {
   int count;
   const Verse* list = verseList(kind, count);
@@ -2018,7 +2047,7 @@ static bool fetchQuote(QTheme th) {
     turn = (turn + 1) % Q_KINDS;
     if (mask >> turn & 1) break;
   }
-  if (turn == Q_GREEK) return pickGreekQuote(th);   // every source follows the moment's theme
+  if (turn == Q_EUROPE) return pickEuropeQuote(th);   // every source follows the moment's theme
   if (turn == Q_MODERN) return pickModernQuote(th);
   if (turn == Q_FAMOUS) return fetchFamousQuote(th) || pickModernQuote(th);   // no key: modern
   if (turn != Q_CHINESE) return pickVerse((QKind)turn, th);
@@ -2028,6 +2057,539 @@ static bool fetchQuote(QTheme th) {
     if (fetchJinrishici("all", "", 5)) return true;
   }
   return pickLocalQuote(th);
+}
+
+// ============================ SONGS ==================================
+// A song for the owner, now and then: the AI picks a real song that suits their music taste and
+// the moment (time, weather, season). Only the title and artist are ever shown, never lyrics.
+// With a Spotify app's keys, Spotify checks the song is real and gives its link; without an AI
+// key Momowo picks from Spotify itself, by the owner's taste. With the owner's Spotify account
+// linked, every pick also goes into a private "Momowo picks" playlist.
+static const uint32_t SONG_EVERY_MS = 3UL * 3600000;   // a new song every 3 hours (while the page is looked at)
+static const char* const SP_REDIRECT = "http://127.0.0.1:8888/callback";   // must match the Spotify app
+
+static bool songCanShow(const char* s) {    // screenCanShow, plus Russian letters
+  const uint8_t* p = (const uint8_t*)s;
+  while (*p) {
+    const uint8_t* at = p;
+    uint32_t c = utf8Next(p);
+    if (c >= 0x400 && c <= 0x4FF) continue;
+    char one[5] = "";
+    memcpy(one, at, min<size_t>(p - at, 4));
+    if (!screenCanShow(one)) return false;
+  }
+  return true;
+}
+
+static void urlEncodeTo(const char* s, String& out) {
+  static const char* kHexd = "0123456789ABCDEF";
+  for (const uint8_t* p = (const uint8_t*)s; *p; p++) {
+    if (isalnum(*p) || strchr("-_.~", *p)) out += (char)*p;
+    else { out += '%'; out += kHexd[*p >> 4]; out += kHexd[*p & 15]; }
+  }
+}
+
+static bool songSame(const char* a, const char* b) {   // same title or artist, ignoring case and spaces
+  while (*a || *b) {
+    while (*a == ' ') a++;
+    while (*b == ' ') b++;
+    if (tolower((uint8_t)*a) != tolower((uint8_t)*b)) return false;
+    if (*a) a++;
+    if (*b) b++;
+  }
+  return true;
+}
+
+static bool songLoose(const char* a, const char* b) {  // one artist name inside the other (ASCII case-blind)
+  char la[96], lb[96];
+  size_t i = 0;
+  for (; a[i] && i + 1 < sizeof(la); i++) la[i] = tolower((uint8_t)a[i]);
+  la[i] = 0;
+  for (i = 0; b[i] && i + 1 < sizeof(lb); i++) lb[i] = tolower((uint8_t)b[i]);
+  lb[i] = 0;
+  return la[0] && lb[0] && (strstr(la, lb) || strstr(lb, la));
+}
+
+static bool songRecent(const char* title, const char* artist) {   // netTask
+  for (int i = 0; i < gSongHistN; i++)
+    if (songSame(gSongHist[i].t, title) && songLoose(gSongHist[i].a, artist)) return true;
+  return false;
+}
+
+// One Spotify Web API call. JSON replies are read through `filter` (search replies are big).
+static int spHttp(const char* method, const char* url, const char* auth, const char* ctype, const char* body,
+                  JsonDocument* doc, JsonDocument* filter) {
+  WiFiClientSecure secure;
+  secure.setInsecure();                     // hobby device, as elsewhere
+  secure.setHandshakeTimeout(10);
+  HTTPClient http;
+  http.useHTTP10(true);                     // a plain byte stream for the JSON reader
+  http.setConnectTimeout(8000);
+  http.setTimeout(10000);
+  if (!http.begin(secure, url)) return -1;
+  http.addHeader("User-Agent", "Momowo-ESP32");
+  if (auth) http.addHeader("Authorization", auth);
+  if (ctype) http.addHeader("Content-Type", ctype);
+  int code = !strcmp(method, "GET") ? http.GET()
+           : http.sendRequest(method, (uint8_t*)(body ? body : ""), body ? strlen(body) : 0);
+  if (code >= 200 && code < 300 && doc) {
+    DeserializationError e = filter ? deserializeJson(*doc, http.getStream(), DeserializationOption::Filter(*filter))
+                                    : deserializeJson(*doc, http.getStream());
+    if (e) code = -2;
+  } else if (code >= 300) {
+    String s = http.getString();
+    Serial.printf("[spotify] %s %d %s\n", method, code, s.substring(0, 160).c_str());
+    if (doc) deserializeJson(*doc, s);      // error details, e.g. {"error":"invalid_grant"}
+  }
+  http.end();
+  return code;
+}
+
+// An access token: the owner's own (account linked) or the app's (search only). netTask.
+static char sSpTok[420] = "";
+static uint32_t sSpTokUntil = 0;
+static bool sSpTokUser = false;
+
+static bool spotifyToken(bool needUser) {
+  if (!SPOTIFY_ID[0] || !SPOTIFY_SECRET[0] || !gWifiUp) return false;
+  const bool user = SPOTIFY_REFRESH[0] != 0;
+  if (needUser && !user) return false;
+  if (sSpTok[0] && sSpTokUser == user && notYet(millis(), sSpTokUntil)) return true;
+  char raw[100], b64[140];
+  snprintf(raw, sizeof(raw), "%s:%s", SPOTIFY_ID, SPOTIFY_SECRET);
+  size_t olen = 0;
+  if (mbedtls_base64_encode((unsigned char*)b64, sizeof(b64), &olen, (const unsigned char*)raw, strlen(raw))) return false;
+  b64[olen] = 0;
+  char auth[160];
+  snprintf(auth, sizeof(auth), "Basic %s", b64);
+  String body;
+  if (user) { body = "grant_type=refresh_token&refresh_token="; urlEncodeTo(SPOTIFY_REFRESH, body); }
+  else body = "grant_type=client_credentials";
+  JsonDocument d;
+  int code = spHttp("POST", "https://accounts.spotify.com/api/token", auth, "application/x-www-form-urlencoded",
+                    body.c_str(), &d, nullptr);
+  if (code != 200) {
+    const char* err = d["error"] | "";
+    if (code == 400 && user && !strcmp(err, "invalid_grant")) {   // access removed on Spotify's side
+      SPOTIFY_REFRESH[0] = 0;
+      prefs.remove("sprt");
+      strlcpy(gSpStatus, "unlinked", sizeof(gSpStatus));
+    } else if (!strcmp(err, "invalid_client")) {
+      strlcpy(gSpStatus, "badkeys", sizeof(gSpStatus));
+    }
+    sSpTok[0] = 0;
+    return false;
+  }
+  const char* tok = d["access_token"] | "";
+  if (!tok[0] || strlen(tok) + 8 >= sizeof(sSpTok)) return false;
+  snprintf(sSpTok, sizeof(sSpTok), "Bearer %s", tok);
+  int life = d["expires_in"] | 3600;
+  sSpTokUntil = millis() + (uint32_t)max(60, life - 120) * 1000UL;
+  sSpTokUser = user;
+  const char* rt = d["refresh_token"] | "";  // Spotify may hand out a new one
+  if (user && rt[0] && strlen(rt) < sizeof(SPOTIFY_REFRESH) && strcmp(rt, SPOTIFY_REFRESH)) {
+    strlcpy(SPOTIFY_REFRESH, rt, sizeof(SPOTIFY_REFRESH));
+    prefs.putString("sprt", SPOTIFY_REFRESH);
+  }
+  return true;
+}
+
+// The phone page passed on the code Spotify gave after the owner said yes: swap it for a
+// lasting refresh token. netTask.
+static void spotifyLink() {
+  char code[sizeof(gSpCode)];
+  xSemaphoreTake(gMutex, portMAX_DELAY);
+  strlcpy(code, gSpCode, sizeof(code));
+  gSpCode[0] = 0;
+  xSemaphoreGive(gMutex);
+  if (!code[0]) return;
+  if (!SPOTIFY_ID[0] || !SPOTIFY_SECRET[0]) { strlcpy(gSpStatus, "nokeys", sizeof(gSpStatus)); return; }
+  if (!gWifiUp) { strlcpy(gSpStatus, "offline", sizeof(gSpStatus)); return; }
+  char raw[100], b64[140];
+  snprintf(raw, sizeof(raw), "%s:%s", SPOTIFY_ID, SPOTIFY_SECRET);
+  size_t olen = 0;
+  if (mbedtls_base64_encode((unsigned char*)b64, sizeof(b64), &olen, (const unsigned char*)raw, strlen(raw))) return;
+  b64[olen] = 0;
+  char auth[160];
+  snprintf(auth, sizeof(auth), "Basic %s", b64);
+  String body = "grant_type=authorization_code&code=";
+  urlEncodeTo(code, body);
+  body += "&redirect_uri=";
+  urlEncodeTo(SP_REDIRECT, body);
+  JsonDocument d;
+  int rc = spHttp("POST", "https://accounts.spotify.com/api/token", auth, "application/x-www-form-urlencoded",
+                  body.c_str(), &d, nullptr);
+  const char* rt = d["refresh_token"] | "";
+  if (rc != 200 || !rt[0] || strlen(rt) >= sizeof(SPOTIFY_REFRESH)) {
+    const char* err = d["error"] | "";
+    strlcpy(gSpStatus, !strcmp(err, "invalid_client") ? "badkeys" : "badcode", sizeof(gSpStatus));
+    return;
+  }
+  strlcpy(SPOTIFY_REFRESH, rt, sizeof(SPOTIFY_REFRESH));
+  prefs.putString("sprt", SPOTIFY_REFRESH);
+  SPOTIFY_PLAYLIST[0] = 0;                  // a (possibly other) account: its own playlist
+  prefs.remove("sppl");
+  const char* at = d["access_token"] | "";
+  if (at[0] && strlen(at) + 8 < sizeof(sSpTok)) {
+    snprintf(sSpTok, sizeof(sSpTok), "Bearer %s", at);
+    sSpTokUntil = millis() + 3000UL * 1000;
+    sSpTokUser = true;
+  } else {
+    sSpTok[0] = 0;
+  }
+  strlcpy(gSpStatus, "linked", sizeof(gSpStatus));
+  Serial.println("[spotify] account linked");
+}
+
+// Search Spotify; tracks Momowo can show, at most maxOut. netTask.
+static int spotifySearch(const char* q, int limit, int offset, SpTrack* out, int maxOut) {
+  if (!spotifyToken(false)) return -1;
+  String url = "https://api.spotify.com/v1/search?type=track&limit=";
+  url += limit;
+  url += "&offset=";
+  url += offset;
+  const char* cc = homeCountry();
+  if (strlen(cc) == 2) { url += "&market="; url += cc; }
+  url += "&q=";
+  urlEncodeTo(q, url);
+  JsonDocument filter;
+  filter["tracks"]["items"][0]["name"] = true;
+  filter["tracks"]["items"][0]["id"] = true;
+  filter["tracks"]["items"][0]["artists"][0]["name"] = true;
+  JsonDocument d;
+  int code = spHttp("GET", url.c_str(), sSpTok, nullptr, nullptr, &d, &filter);
+  if (code == 401) sSpTok[0] = 0;           // expired early: a new token next time
+  if (code != 200) return -1;
+  int n = 0;
+  for (JsonObject it : d["tracks"]["items"].as<JsonArray>()) {
+    if (n >= maxOut) break;
+    const char* name = it["name"] | "";
+    const char* artist = it["artists"][0]["name"] | "";
+    const char* id = it["id"] | "";
+    if (!name[0] || !artist[0] || !id[0] || strlen(id) >= sizeof(out[0].id)) continue;
+    if (!songCanShow(name) || !songCanShow(artist)) continue;
+    utf8Copy(out[n].name, name, sizeof(out[n].name));
+    utf8Copy(out[n].artist, artist, sizeof(out[n].artist));
+    strlcpy(out[n].id, id, sizeof(out[n].id));
+    n++;
+  }
+  return n;
+}
+
+// Is it a real song? Spotify's own spelling and track id if found, ok = false if Spotify could not say
+static bool spotifyCheck(char* title, size_t tn, char* artist, size_t an, char* id, size_t idn, bool& ok) {
+  ok = false;
+  static SpTrack r[5];
+  String q = "track:";
+  q += title;
+  q += " artist:";
+  q += artist;
+  int n = spotifySearch(q.c_str(), 5, 0, r, 5);
+  if (n < 0) return false;
+  ok = true;
+  if (n == 0) {                             // looser: the words alone, the artist must match
+    q = title;
+    q += " ";
+    q += artist;
+    n = spotifySearch(q.c_str(), 5, 0, r, 5);
+    if (n < 0) { ok = false; return false; }
+    int k = -1;
+    for (int i = 0; i < n && k < 0; i++) if (songLoose(r[i].artist, artist)) k = i;
+    if (k < 0) return false;
+    if (k) r[0] = r[k];
+  }
+  utf8Copy(title, r[0].name, tn);
+  utf8Copy(artist, r[0].artist, an);
+  strlcpy(id, r[0].id, idn);
+  return true;
+}
+
+// The moment, in English, for the AI
+static void songContext(char* ctx, size_t n) {
+  struct tm t;
+  ctx[0] = 0;
+  if (!nowTm(t)) return;
+  static const char* const DAYS[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+  int h = t.tm_hour;
+  const char* part = h < 5 ? "late night" : h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
+  WeatherData w;
+  xSemaphoreTake(gMutex, portMAX_DELAY);
+  w = gWeather;
+  xSemaphoreGive(gMutex);
+  LocationData loc = getLocation();
+  float lat = loc.valid ? loc.lat : (isnan(gSavedLat) ? FIXED_LAT : gSavedLat);
+  static const char* const SEASON[4] = {"spring", "summer", "autumn", "winter"};
+  QTheme se = seasonTheme(t.tm_mon + 1, lat);
+  int k = snprintf(ctx, n, "It is %s %s, %s. ", DAYS[t.tm_wday], part,
+                   fabsf(lat) < 23.44f ? "in the tropics" : SEASON[se - T_SPRING]);
+  if (w.valid && millis() - w.at < 3UL * 3600000 && k > 0 && (size_t)k < n)
+    snprintf(ctx + k, n - k, "Weather: %s, %d C. ", condText(w.code), (int)lroundf(w.temp));
+}
+
+// The AI's picks: up to `want` songs. netTask.
+static int aiSongs(int want, SongRec* out, char* why, size_t whyN) {
+  if (!AI_API_KEY[0] || !gWifiUp) return 0;
+  const char* lim = langIsCjk() ? (LANG == L_JA ? "50 characters" : "40 characters") : "25 words";
+  char ctx[200];
+  songContext(ctx, sizeof(ctx));
+  String p = "You are Momowo, a little desk companion. ";
+  p += want > 1 ? "Recommend " : "Recommend one song ";
+  if (want > 1) { p += want; p += " different songs "; }
+  p += "for your owner. Their music taste: ";
+  p += SONG_TASTE[0] ? SONG_TASTE : "not given yet, so choose well-loved songs from many countries and decades";
+  p += ". ";
+  if (OWNER_HOBBIES[0]) { p += "Their hobbies, as a light hint only: "; p += OWNER_HOBBIES; p += ". "; }
+  p += ctx;
+  p += want > 1 ? "Make it a varied playlist that fits their taste. "
+                : "Pick one that fits their taste and suits this moment. ";
+  p += "Only real, officially released songs you are certain exist, by the artist you name; never invent one. "
+       "Keep them suitable for all ages. Vary the artists. Never include, quote or paraphrase any lyrics. "
+       "Write titles and artists exactly as officially released if they use Latin, Chinese, Japanese, Greek, "
+       "Russian, Hebrew or Arabic letters; otherwise use their official English or romanised names.";
+  bool any = false;
+  for (int i = 0; i < gSongHistN; i++) {
+    p += any ? "; " : " Not these recent ones: ";
+    p += gSongHist[i].t;
+    p += " by ";
+    p += gSongHist[i].a;
+    any = true;
+  }
+  if (any) p += ".";
+  p += " Reply with JSON only: {\"songs\":[{\"t\":\"title\",\"a\":\"artist\"}";
+  if (want > 1) p += ", ...";
+  p += "],\"why\":\"in ";
+  p += LANG_NAME[LANG];
+  p += ", at most ";
+  p += lim;
+  p += want > 1 ? ", a warm line about this playlist" : ", a warm line on why it suits them right now";
+  p += "; no lyrics\"}";
+  p += genderNote();
+  static char res[1600];
+  if (!askAI(p.c_str(), res, sizeof(res), want > 1 ? 900 : 250, true)) return 0;
+  char* a = strchr(res, '{');
+  char* b = strrchr(res, '}');
+  if (!a || !b || b < a) return 0;
+  b[1] = 0;
+  JsonDocument doc;
+  if (deserializeJson(doc, a)) return 0;
+  int n = 0;
+  for (JsonObject s : doc["songs"].as<JsonArray>()) {
+    if (n >= want) break;
+    const char* t = s["t"] | "";
+    const char* ar = s["a"] | "";
+    if (!t[0] || !ar[0] || isRefusal(t) || !songCanShow(t) || !songCanShow(ar)) continue;
+    utf8Copy(out[n].t, t, sizeof(out[n].t));
+    utf8Copy(out[n].a, ar, sizeof(out[n].a));
+    out[n].id[0] = 0;
+    n++;
+  }
+  const char* w = doc["why"] | "";
+  why[0] = 0;
+  if (w[0] && !isRefusal(w) && songCanShow(w)) {
+    utf8Copy(why, w, whyN);
+    clampText(why, langIsCjk() ? 200 : 220);
+  }
+  return n;
+}
+
+// Momowo picks by itself from Spotify: a search for one of the owner's favourites (or the moment)
+static int spotifySongs(int want, SongRec* out, char* why, size_t whyN) {
+  char terms[8][40];
+  int nt = 0;
+  {
+    char buf[sizeof(SONG_TASTE)];
+    strlcpy(buf, SONG_TASTE, sizeof(buf));
+    for (char* s = buf; *s && nt < 8; ) {   // split at , ; / and the Chinese and Japanese commas
+      char* e = s;
+      while (*e && !strchr(",;/", *e) && strncmp(e, "，", 3) && strncmp(e, "、", 3)) e++;
+      char c = *e;
+      *e = 0;
+      while (*s == ' ') s++;
+      char* end = s + strlen(s);
+      while (end > s && end[-1] == ' ') *--end = 0;
+      if (*s) utf8Copy(terms[nt++], s, sizeof(terms[0]));
+      if (!c) break;
+      s = e + (c == ',' || c == ';' || c == '/' ? 1 : 3);
+    }
+  }
+  struct tm t;
+  if (!nt) {                                // no taste given: music for the moment
+    int h = nowTm(t) ? t.tm_hour : 12;
+    WeatherData w = getWeather();
+    QTheme wx = weatherTheme(w);
+    strlcpy(terms[nt++], wx == T_RAIN ? "rainy day" : h < 10 ? "good morning" : h >= 20 ? "chill evening"
+                         : (w.valid && w.code <= 2) ? "sunny day" : "feel good", sizeof(terms[0]));
+  }
+  int n = 0;
+  for (int tries = 0; tries < want + 3 && n < want; tries++) {
+    const char* term = terms[esp_random() % nt];
+    static SpTrack r[10];
+    int got = spotifySearch(term, 10, esp_random() % 40, r, 10);
+    if (got < 0) break;
+    for (int k = 0; k < got && n < want; k++) {
+      SpTrack& c = r[(k + esp_random()) % got];
+      bool dup = songRecent(c.name, c.artist);
+      for (int j = 0; j < n && !dup; j++) dup = !strcmp(out[j].id, c.id) || songSame(out[j].t, c.name);
+      if (dup) continue;
+      utf8Copy(out[n].t, c.name, sizeof(out[n].t));
+      utf8Copy(out[n].a, c.artist, sizeof(out[n].a));
+      strlcpy(out[n].id, c.id, sizeof(out[n].id));
+      n++;
+      if (want == 1 && SONG_TASTE[0]) snprintf(why, whyN, T(S_SONG_LIKE), term);
+      break;                                // one per search: a mix of the favourites
+    }
+  }
+  if (want > 1 || !SONG_TASTE[0]) why[0] = 0;
+  return n;
+}
+
+// The owner's Spotify playlist "Momowo picks" (made the first time). netTask.
+static bool spotifyPlaylist() {
+  if (SPOTIFY_PLAYLIST[0]) return true;
+  if (!spotifyToken(true)) return false;
+  JsonDocument filter;
+  filter["id"] = true;
+  JsonDocument d;
+  const char* body = "{\"name\":\"Momowo picks\",\"public\":false,"
+                     "\"description\":\"Songs my Momowo desk buddy picked for me\"}";
+  int code = spHttp("POST", "https://api.spotify.com/v1/me/playlists", sSpTok, "application/json", body, &d, &filter);
+  if (code < 200 || code >= 300) {          // older route: by the account's id
+    JsonDocument me, mf;
+    mf["id"] = true;
+    if (spHttp("GET", "https://api.spotify.com/v1/me", sSpTok, nullptr, nullptr, &me, &mf) != 200) return false;
+    const char* uid = me["id"] | "";
+    if (!uid[0]) return false;
+    String url = "https://api.spotify.com/v1/users/";
+    urlEncodeTo(uid, url);
+    url += "/playlists";
+    d.clear();
+    code = spHttp("POST", url.c_str(), sSpTok, "application/json", body, &d, &filter);
+    if (code < 200 || code >= 300) return false;
+  }
+  const char* id = d["id"] | "";
+  if (!id[0] || strlen(id) >= sizeof(SPOTIFY_PLAYLIST)) return false;
+  strlcpy(SPOTIFY_PLAYLIST, id, sizeof(SPOTIFY_PLAYLIST));
+  prefs.putString("sppl", SPOTIFY_PLAYLIST);
+  Serial.println("[spotify] playlist made");
+  return true;
+}
+
+static int spotifyAdd(const SongRec* s, int n) {   // returns how many went in. netTask.
+  if (!SPOTIFY_ADD || !SPOTIFY_REFRESH[0]) return 0;
+  String body = "{\"uris\":[";
+  int k = 0;
+  for (int i = 0; i < n; i++) {
+    if (!s[i].id[0]) continue;
+    if (k++) body += ",";
+    body += "\"spotify:track:";
+    body += s[i].id;
+    body += "\"";
+  }
+  body += "]}";
+  if (!k) return 0;
+  for (int attempt = 0; attempt < 2; attempt++) {
+    if (!spotifyPlaylist() || !spotifyToken(true)) return 0;
+    for (const char* route : {"/items", "/tracks"}) {   // the newer route first
+      String url = "https://api.spotify.com/v1/playlists/";
+      url += SPOTIFY_PLAYLIST;
+      url += route;
+      int code = spHttp("POST", url.c_str(), sSpTok, "application/json", body.c_str(), nullptr, nullptr);
+      if (code >= 200 && code < 300) return k;
+      if (code == 404 && !strcmp(route, "/tracks")) {   // the playlist was deleted: make a new one
+        SPOTIFY_PLAYLIST[0] = 0;
+        prefs.remove("sppl");
+      }
+      if (code == 401) { sSpTok[0] = 0; break; }
+      if (code != 404 && code != 405) return 0;
+    }
+  }
+  return 0;
+}
+
+static void songRemember(const SongRec& s) {     // newest first, kept through power cuts. netTask.
+  memmove(&gSongHist[1], &gSongHist[0], sizeof(gSongHist[0]) * (SONG_HIST - 1));
+  gSongHist[0] = s;
+  if (gSongHistN < SONG_HIST) gSongHistN++;
+  JsonDocument d;
+  JsonArray a = d.to<JsonArray>();
+  for (int i = 0; i < gSongHistN; i++) {
+    JsonArray r = a.add<JsonArray>();
+    r.add(gSongHist[i].t);
+    r.add(gSongHist[i].a);
+    r.add(gSongHist[i].id);
+  }
+  String out;
+  serializeJson(d, out);
+  prefs.putString("songh", out);
+}
+
+static void loadSongs() {                   // setup()
+  String s = prefs.getString("songh", "");
+  JsonDocument d;
+  if (s.length() && !deserializeJson(d, s)) {
+    for (JsonVariant v : d.as<JsonArray>()) {
+      if (gSongHistN >= SONG_HIST) break;
+      JsonArray r = v.as<JsonArray>();
+      SongRec& h = gSongHist[gSongHistN++];
+      utf8Copy(h.t, r[0] | "", sizeof(h.t));
+      utf8Copy(h.a, r[1] | "", sizeof(h.a));
+      strlcpy(h.id, r[2] | "", sizeof(h.id));
+    }
+  }
+  if (gSongHistN && prefs.getUChar("songlang", 255) == LANG) {   // the last pick, as it was
+    strlcpy(gSong.title, gSongHist[0].t, sizeof(gSong.title));
+    strlcpy(gSong.artist, gSongHist[0].a, sizeof(gSong.artist));
+    strlcpy(gSong.id, gSongHist[0].id, sizeof(gSong.id));
+    prefs.getString("songwhy", gSong.why, sizeof(gSong.why));
+    gSong.version++;
+  }
+}
+
+// One new song for the Songs page: the AI's pick checked by Spotify, or Spotify's own. netTask.
+static bool fetchSong() {
+  SongRec pick[1] = {};
+  char why[320] = "";
+  bool found = false;
+  for (int attempt = 0; attempt < 2 && !found; attempt++) {
+    if (aiSongs(1, pick, why, sizeof(why)) < 1) break;
+    bool asked;
+    if (songRecent(pick[0].t, pick[0].a)) continue;   // the AI repeated itself
+    if (spotifyCheck(pick[0].t, sizeof(pick[0].t), pick[0].a, sizeof(pick[0].a), pick[0].id, sizeof(pick[0].id), asked) ||
+        !asked) found = true;               // Spotify knows it, or Spotify isn't set up: trust the AI
+    else Serial.println("[song] Spotify doesn't know that one: asking again");
+  }
+  if (!found) found = spotifySongs(1, pick, why, sizeof(why)) == 1;
+  if (!found) return false;
+  xSemaphoreTake(gMutex, portMAX_DELAY);
+  strlcpy(gSong.title, pick[0].t, sizeof(gSong.title));
+  strlcpy(gSong.artist, pick[0].a, sizeof(gSong.artist));
+  strlcpy(gSong.id, pick[0].id, sizeof(gSong.id));
+  strlcpy(gSong.why, why, sizeof(gSong.why));
+  gSong.version++;
+  xSemaphoreGive(gMutex);
+  songRemember(pick[0]);
+  prefs.putString("songwhy", why);
+  prefs.putUChar("songlang", LANG);
+  spotifyAdd(pick, 1);
+  Serial.printf("[song] %s - %s\n", pick[0].t, pick[0].a);
+  return true;
+}
+
+// "Fill my playlist": ten songs at once into the owner's Spotify playlist. netTask.
+static void fillPlaylist() {
+  static SongRec list[10];
+  char why[320];
+  int n = aiSongs(10, list, why, sizeof(why));
+  int k = 0;
+  for (int i = 0; i < n; i++) {             // keep only songs Spotify knows
+    bool asked;
+    if (spotifyCheck(list[i].t, sizeof(list[i].t), list[i].a, sizeof(list[i].a), list[i].id, sizeof(list[i].id), asked))
+      list[k++] = list[i];
+  }
+  if (k < 5) k += spotifySongs(10 - k, list + k, why, sizeof(why));   // topped up from Spotify
+  int added = spotifyAdd(list, k);
+  snprintf(gSpStatus, sizeof(gSpStatus), added ? "filled:%d" : "fillfail", added);
+  if (added) gSongAddedN = added;           // loop() says so on the screen
 }
 
 // ---- Quote context: season (hemisphere-aware), weather, time of day ----
@@ -2472,7 +3034,7 @@ static void explainQuote() {
   bool known = gQuote.meaning[0] != 0;      // built-in quotes bring their own English line
   xSemaphoreGive(gMutex);
   // A quote already in the owner's language gets an explanation, since there is nothing to translate
-  const bool explain = QUOTE_AI || quoteInMyLanguage(kind);
+  const bool explain = QUOTE_AI || quoteInMyLanguage(kind, q);
   if (known && kind >= Q_FAMOUS) return;    // the AI sent it with the quote
   if (known && LANG == L_EN && !explain) return;   // other languages: Claude translates them too
   const char* who = src[0] == '-' ? src + 2 : src;
@@ -2519,20 +3081,24 @@ static void explainQuote() {
                "tradition; don't preach or claim religious authority.%s Reply with the reflection only.",
                book, who, text, LANG_NAME[LANG], lim, genderNote());
     }
-  } else if (!explain) {                    // Greek, modern or famous: a translation
-    if (LANG == L_EN && kind < Q_FAMOUS) return;   // the Greek's English line is already the translation
+  } else if (!explain) {                    // European, modern or famous: a translation
+    if (LANG == L_EN && kind < Q_FAMOUS) return;   // the built-in English line is already the translation
     const char* en = englishFor(kind, q);
+    char what[48] = "quote";
+    if (kind == Q_EUROPE) { const EuroQuote* e = europeQuote(q); if (e) snprintf(what, sizeof(what), "%s quote", EURO_LANG_NAME[e->lang]); }
     snprintf(prompt, sizeof(prompt),
              "Translate this %s by %s into natural %s, in at most %s.%s%s%s Reply with the translation only.\n%s",
-             kind == Q_GREEK ? "Ancient Greek saying" : "quote", who, LANG_NAME[LANG],
+             what, who, LANG_NAME[LANG],
              langIsCjk() ? "40 characters" : "25 words",
              en ? " In English it is \"" : "", en ? en : "", en ? "\"." : "", q);
-  } else {                                  // Greek or modern: what it means for today
+  } else {                                  // European or modern: what it means for today
     const char* en = englishFor(kind, q);
+    char what[48] = "Quote";
+    if (kind == Q_EUROPE) { const EuroQuote* e = europeQuote(q); if (e) snprintf(what, sizeof(what), "%s quote", EURO_LANG_NAME[e->lang]); }
     snprintf(prompt, sizeof(prompt),
              "%s by %s: \"%s\"%s%s%s\nIn %s, in at most %s, say what it means and how it could help someone "
              "feeling stressed today. %s%s Reply with the explanation only.",
-             kind == Q_GREEK ? "Ancient Greek saying" : "Quote", who, q,
+             what, who, q,
              en ? " (in English: \"" : "", en ? en : "", en ? "\")" : "",
              LANG_NAME[LANG], lim, calm, genderNote());
   }
@@ -3363,6 +3929,32 @@ static void netTask(void*) {
       }
     }
 
+    // 4b) Songs: a new one on request, for a first look, every 3 h while the page is looked at, or
+    //     after a language change. Spotify sign-in and "fill my playlist" from the phone page too.
+    if (gSpCode[0]) spotifyLink();
+    if (gReqSongFill) {
+      gReqSongFill = false;
+      if (gWifiUp) { gAiForUser = true; fillPlaylist(); gAiForUser = false; }
+      else strlcpy(gSpStatus, "offline", sizeof(gSpStatus));
+    }
+    {
+      static uint32_t songAt = 0, nextSongTry = 0;
+      static uint8_t songLang = 255;
+      bool have = gSong.title[0] != 0;
+      if (have && songLang == 255) { songLang = LANG; songAt = now; }   // restored at start-up
+      bool due = gReqSong || (gSongSeen && SONGS_ON &&
+                 (!have || songLang != LANG || now - songAt >= SONG_EVERY_MS));
+      if (due && gWifiUp && (gReqSong || !notYet(now, nextSongTry)) &&
+          (AI_API_KEY[0] || (SPOTIFY_ID[0] && SPOTIFY_SECRET[0]))) {
+        gReqSong = false;
+        gAiForUser = true;                  // someone is looking at the page right now
+        bool ok = fetchSong();
+        gAiForUser = false;
+        if (ok) { songAt = now; songLang = LANG; gSongSeen = false; nextSongTry = 0; }
+        else { nextSongTry = now + 120000; gSongSeen = false; }   // again only while someone looks
+      }
+    }
+
     // 5) A feeling of its own (AI): as often as the owner chose (90 minutes to start with) while
     //    it's awake; with 90 minutes or less, also sooner (after 30 min) when the weather turns
     // Feelings: never during sleep hours; by day the first one comes right after start-up,
@@ -3721,7 +4313,7 @@ static volatile uint32_t sndReqId  = 0;
 
 static void buzz(uint16_t hz) {
   if (!BUZZER_PASSIVE) { digitalWrite(BUZZER_PIN, hz ? HIGH : LOW); return; }
-  uint32_t duty = hz ? (uint32_t)511 * BUZZER_VOLUME * BUZZER_VOLUME / 100 : 0;   // 10-bit PWM
+  uint32_t duty = hz ? 511 : 0;             // 10-bit PWM, full strength: the knob (RV1) sets the volume
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   if (hz) ledcWriteTone(BUZZER_PIN, hz);
   ledcWrite(BUZZER_PIN, duty);
@@ -4936,8 +5528,8 @@ static void cjkLine(const char* s, int baseline, uint8_t align, uint32_t elapsed
   u8f.drawUTF8(x, baseline, s);
 }
 
-// Greek, Hebrew, Arabic and Pali quotes, each in a font with its letters
-enum : uint8_t { SC_LATIN, SC_GREEK, SC_HEBREW, SC_ARABIC, SC_LATIN_EXT };
+// Greek, Russian, Hebrew, Arabic, Pali and European quotes, each in a font with its letters
+enum : uint8_t { SC_LATIN, SC_GREEK, SC_HEBREW, SC_ARABIC, SC_LATIN_EXT, SC_CYRILLIC, SC_EUROPE };
 
 static uint8_t scriptOf(const char* s) {
   const uint8_t* p = (const uint8_t*)s;
@@ -4947,6 +5539,7 @@ static uint8_t scriptOf(const char* s) {
     if (c >= 0x590 && c <= 0x5FF) return SC_HEBREW;
     if (c >= 0x600 && c <= 0x6FF) return SC_ARABIC;
     if (c >= 0x370 && c <= 0x3FF) return SC_GREEK;
+    if (c >= 0x400 && c <= 0x4FF) return SC_CYRILLIC;
     if ((c >= 0x100 && c <= 0x24F) || (c >= 0x1E00 && c <= 0x1EFF)) sc = SC_LATIN_EXT;   // Pali: ā ṃ ṅ ...
   }
   return sc;
@@ -4957,6 +5550,7 @@ static const char* scriptLanguage(QKind kind, const char* text) {   // for the A
     case SC_HEBREW: return "Hebrew";
     case SC_ARABIC: return "Arabic";
     case SC_GREEK: return kind == Q_BIBLE ? "Koine Greek" : "Ancient Greek";
+    case SC_CYRILLIC: return "Russian";
     case SC_LATIN_EXT: return "Pali";
     default: return "language";
   }
@@ -4996,9 +5590,11 @@ static int arabicShape(uint16_t* cp, int n) {   // in place; returns the new len
 
 // The quote centred in the area above the source line, wrapped at spaces, right to left for
 // Hebrew and Arabic; scrolls when it is too long
+static int gScriptTop = 0;                  // drawScriptText: its area starts this far down (Songs page)
 static void drawScriptText(const char* text, uint8_t sc, int area, uint32_t el) {
   u8f.setFont(sc == SC_GREEK ? u8g2_font_cu12_t_greek : sc == SC_HEBREW ? u8g2_font_cu12_t_hebrew
-              : sc == SC_ARABIC ? u8g2_font_cu12_t_arabic : u8g2_font_fusion12_tc);
+              : sc == SC_ARABIC ? u8g2_font_cu12_t_arabic : sc == SC_CYRILLIC ? u8g2_font_cu12_t_cyrillic
+              : sc == SC_EUROPE ? u8g2_font_cu12_te : u8g2_font_fusion12_tc);
   static uint16_t cp[256];
   static uint8_t w[256];
   int n = 0;
@@ -5053,22 +5649,23 @@ static void drawScriptText(const char* text, uint8_t sc, int area, uint32_t el) 
     int x = rtl ? (SCREEN_W + lw) / 2 : (SCREEN_W - lw) / 2;
     for (int k = ls[l]; k < e; k++) {       // logical order; Hebrew and Arabic step leftwards
       if (rtl) x -= w[k];
-      u8f.drawGlyph(x, y + asc, cp[k]);
+      u8f.drawGlyph(x, gScriptTop + y + asc, cp[k]);
       if (!rtl) x += w[k];
     }
   }
 }
 
-// Greek, modern or scripture quote: the original for 10 s, then the translation or the AI's reflection
+// European, modern or scripture quote: the original for 10 s, then the translation or the AI's reflection
 static void drawWorldQuote(QKind kind, const char* text, const char* author, const char* meaning, uint32_t el) {
-  const Str hdr = (QUOTE_AI || quoteInMyLanguage(kind)) && AI_API_KEY[0] ? S_REFLECTION : S_TRANSLATION;
+  const Str hdr = (QUOTE_AI || quoteInMyLanguage(kind, text)) && AI_API_KEY[0] ? S_REFLECTION : S_TRANSLATION;
   if (meaning[0] && el % 20000 >= 10000) {
     drawWrapped(meaning, bodyTop(), el % 20000 - 10000);
     pageHeader(T(hdr), nullptr);
     return;
   }
   const int AREA = SCREEN_H - 12;
-  const uint8_t sc = scriptOf(text);
+  uint8_t sc = scriptOf(text);
+  if (kind == Q_EUROPE && (sc == SC_LATIN || sc == SC_LATIN_EXT)) sc = SC_EUROPE;   // é, ü, ã, œ ... as written
   if (sc != SC_LATIN) {
     drawScriptText(text, sc, AREA, el % 10000);
   } else if (hasCjk(text)) {
@@ -5163,6 +5760,74 @@ static void drawQuotePage(uint32_t now) {
       u8f.drawUTF8(3, srcBase, tag);
     }
   }
+}
+
+// ============================ SONGS PAGE =============================
+// The song's title and artist for 10 s, then why Momowo picked it for 10 s
+static void drawSongPage(uint32_t now) {
+  static uint32_t seenVer = 0xFFFFFFFF, shownAt = 0;
+  static char title[100] = "", artist[80] = "", why[320] = "";
+  static bool onSpotify = false;
+  if (xSemaphoreTake(gMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+    if (gSong.version != seenVer) {
+      seenVer = gSong.version;
+      shownAt = now;
+      strlcpy(title, gSong.title, sizeof(title));
+      strlcpy(artist, gSong.artist, sizeof(artist));
+      strlcpy(why, gSong.why, sizeof(why));
+      onSpotify = gSong.id[0] != 0;
+    }
+    xSemaphoreGive(gMutex);
+  }
+  gSongSeen = true;                         // netTask: a new song is due only for someone looking
+  if (!title[0]) {
+    if (!gWifiUp) { textLine(T(S_WAIT_WIFI), 28, 1, 0); return; }
+    if (!AI_API_KEY[0] && !(SPOTIFY_ID[0] && SPOTIFY_SECRET[0])) {
+      drawWrapped(T(S_SONG_NEED), bodyTop(), now - gPageEnter);
+      pageHeader(T(S_SONG_FOR_YOU), nullptr);
+      return;
+    }
+    textLine(T(S_SONG_FINDING), 28, 1, 0);
+    return;
+  }
+  uint32_t base = gPageEnter > shownAt ? gPageEnter : shownAt;
+  uint32_t el = now - base;
+  if (why[0] && el % 20000 >= 10000) {
+    gTcText = wantsTc(why);
+    drawWrapped(why, bodyTop(), el % 20000 - 10000);
+    gTcText = false;
+    pageHeader(T(S_SONG_WHY), nullptr);
+    return;
+  }
+  el %= 10000;
+  gTallHeader = hasCjk(title) || hasCjk(artist);   // the same header height as the text below
+  const int top = bodyTop() + 1, bottom = SCREEN_H - 12;
+  if (hasCjk(title)) {
+    gTcText = wantsTc(title);
+    gWrapBottom = bottom;
+    drawWrapped(title, top, el);
+    gWrapBottom = SCREEN_H;
+    gTcText = false;
+  } else {
+    uint8_t sc = scriptOf(title);
+    if (sc == SC_LATIN || sc == SC_LATIN_EXT) sc = SC_EUROPE;   // é, ü, ñ ... as written
+    gScriptTop = top;
+    drawScriptText(title, sc, bottom - top, el);
+    gScriptTop = 0;
+  }
+  display.fillRect(0, bottom, SCREEN_W, SCREEN_H - bottom, SH110X_BLACK);
+  uint8_t asc = scriptOf(artist);
+  if (!hasCjk(artist) && asc != SC_LATIN && asc != SC_LATIN_EXT) {   // Greek, Russian, Hebrew, Arabic
+    gScriptTop = bottom - 1;
+    drawScriptText(artist, asc, SCREEN_H - bottom + 1, el);
+    gScriptTop = 0;
+  } else {
+    gTcText = wantsTc(artist);
+    textLine(artist, SCREEN_H - 8, 1, el);
+    gTcText = false;
+  }
+  pageHeader(T(S_SONG_FOR_YOU), onSpotify ? "Spotify" : nullptr);
+  gTallHeader = false;
 }
 
 // ============================ FOCUS TIMER ============================
@@ -5321,12 +5986,18 @@ static void loadSettings() {
   getStr("credit", NEWS_CREDIT, sizeof(NEWS_CREDIT));
   getStr("voicetxt", NEWS_VOICE_OWN, sizeof(NEWS_VOICE_OWN));
   getStr("famous", FAMOUS_PEOPLE, sizeof(FAMOUS_PEOPLE));
+  getStr("songlike", SONG_TASTE, sizeof(SONG_TASTE));
+  getStr("spid", SPOTIFY_ID, sizeof(SPOTIFY_ID));
+  getStr("spsec", SPOTIFY_SECRET, sizeof(SPOTIFY_SECRET));
+  getStr("sprt", SPOTIFY_REFRESH, sizeof(SPOTIFY_REFRESH));
+  getStr("sppl", SPOTIFY_PLAYLIST, sizeof(SPOTIFY_PLAYLIST));
+  SONGS_ON = prefs.getBool("songon", SONGS_ON);
+  SPOTIFY_ADD = prefs.getBool("spadd", SPOTIFY_ADD);
   AI_PROVIDER = min<int>(prefs.getUChar("aiprovider", 0), 3);
   getStr(AI_KEY_PREFS[AI_PROVIDER], AI_API_KEY, sizeof(AI_API_KEY));
   getStr(AI_MODEL_PREFS[AI_PROVIDER], AI_MODEL_CUSTOM, sizeof(AI_MODEL_CUSTOM));
   SLEEP_HOUR    = prefs.getChar("sleep", SLEEP_HOUR);
   WAKE_HOUR     = prefs.getChar("wake", WAKE_HOUR);
-  BUZZER_VOLUME = prefs.getUChar("vol", BUZZER_VOLUME);
   NEWS_VOICE    = prefs.getUChar("voice", NEWS_VOICE);
   if (NEWS_VOICE > 6) NEWS_VOICE = 0;
   TOUCH_CLICK   = prefs.getBool("click", TOUCH_CLICK);
@@ -5385,7 +6056,7 @@ static void handleInfo() {
   d["hobbies"] = OWNER_HOBBIES;
   if (prefs.isKey("lang")) d["lang"] = LANG;   // none saved yet: the page uses the phone's language
   d["h24"] = USE_24H;         d["sleep"] = SLEEP_HOUR;    d["wake"] = WAKE_HOUR;
-  d["sound"] = !gMuted;       d["vol"] = BUZZER_VOLUME;   d["click"] = TOUCH_CLICK;
+  d["sound"] = !gMuted;       d["click"] = TOUCH_CLICK;
   d["voice"] = NEWS_VOICE;    d["voicetxt"] = NEWS_VOICE_OWN;
   d["chime"] = HOURLY_CHIME;  d["news"] = NEWS_FEED_URL;  d["credit"] = NEWS_CREDIT;
   d["hasPass"] = WIFI_PASS[0] != 0;
@@ -5409,6 +6080,20 @@ static void handleInfo() {
   d["feelmin"] = FEEL_MIN;
   d["ailimit"] = AI_DAY_LIMIT; { struct tm t; d["aiUsed"] = (nowTm(t) && t.tm_yday != gAiDay) ? 0 : (int)gAiUsed; }
   d["famous"] = FAMOUS_PEOPLE;
+  d["songon"] = SONGS_ON;     d["songlike"] = SONG_TASTE;
+  d["spid"] = SPOTIFY_ID;     // the app's Client ID is public; the secret and sign-in never leave Momowo
+  d["hasSpSec"] = SPOTIFY_SECRET[0] != 0;
+  d["spLinked"] = SPOTIFY_REFRESH[0] != 0;
+  d["spadd"] = SPOTIFY_ADD;
+  d["spStatus"] = gSpStatus;
+  d["spPlaylist"] = SPOTIFY_PLAYLIST;
+  {
+    JsonArray sa = d["songs"].to<JsonArray>();
+    for (int i = 0; i < gSongHistN; i++) {  // recent picks, for links on the page
+      JsonObject o = sa.add<JsonObject>();
+      o["t"] = gSongHist[i].t;  o["a"] = gSongHist[i].a;  o["id"] = gSongHist[i].id;
+    }
+  }
   d["ntrans"] = NEWS_TRANSLATE; d["nstyle"] = NEWS_STYLE;
   d["fmin"] = FOCUS_MIN;      d["bmin"] = BREAK_MIN;
   d["motion"] = MOTION_ON;    d["msens"] = MOTION_SENS;   d["mmirror"] = MOTION_MIRROR;
@@ -5502,6 +6187,14 @@ static void handleSave() {
   putStr("credit", NEWS_CREDIT, sizeof(NEWS_CREDIT));
   putStr("voicetxt", NEWS_VOICE_OWN, sizeof(NEWS_VOICE_OWN));
   putStr("famous", FAMOUS_PEOPLE, sizeof(FAMOUS_PEOPLE));
+  putStr("songlike", SONG_TASTE, sizeof(SONG_TASTE));
+  if (d["songon"].is<bool>()) prefs.putBool("songon", d["songon"].as<bool>());
+  if (d["spadd"].is<bool>())  prefs.putBool("spadd", d["spadd"].as<bool>());
+  if (d["spclear"] | false) {               // forget the Spotify app and the account link
+    for (const char* k : {"spid", "spsec", "sprt", "sppl"}) prefs.remove(k);
+  }
+  if (d["spid"].is<const char*>() && *d["spid"].as<const char*>()) putStr("spid", SPOTIFY_ID, sizeof(SPOTIFY_ID));
+  if (d["spsec"].is<const char*>() && *d["spsec"].as<const char*>()) putStr("spsec", SPOTIFY_SECRET, sizeof(SPOTIFY_SECRET));
   // Save to the selected provider's slot. Runtime configuration changes on restart.
   uint8_t provider = d["aiprovider"].is<int>() ? constrain(d["aiprovider"].as<int>(), 0, 3) : AI_PROVIDER;
   prefs.putUChar("aiprovider", provider);
@@ -5517,7 +6210,6 @@ static void handleSave() {
   if (d["h24"].is<bool>())   prefs.putBool("h24", d["h24"].as<bool>());
   if (d["sleep"].is<int>())  prefs.putChar("sleep", constrain(d["sleep"].as<int>(), 0, 23));
   if (d["wake"].is<int>())   prefs.putChar("wake", constrain(d["wake"].as<int>(), 0, 23));
-  if (d["vol"].is<int>())    prefs.putUChar("vol", constrain(d["vol"].as<int>(), 1, 10));
   if (d["voice"].is<int>())  prefs.putUChar("voice", constrain(d["voice"].as<int>(), 0, 6));
   if (d["sound"].is<bool>()) prefs.putBool("mute", !d["sound"].as<bool>());
   if (d["click"].is<bool>()) prefs.putBool("click", d["click"].as<bool>());
@@ -5551,6 +6243,31 @@ static void handleSave() {
   gRestartAt = millis() + 1500;             // restart with the new settings
 }
 
+// Spotify from the phone page: {"code": "..."} links the account (Spotify's sign-in code, swapped for a
+// lasting token by netTask), {"fill": true} fills the playlist. The page then watches /info.
+static void handleSpotify() {
+  JsonDocument d;
+  if (deserializeJson(d, server.arg("plain"))) { server.send(400, "text/plain", "Bad request"); return; }
+  const char* code = d["code"] | "";
+  if (code[0]) {
+    if (strlen(code) >= sizeof(gSpCode) || strpbrk(code, "\r\n&= ")) { server.send(400, "text/plain", "Bad code"); return; }
+    strlcpy(gSpStatus, "linking", sizeof(gSpStatus));
+    xSemaphoreTake(gMutex, portMAX_DELAY);
+    strlcpy(gSpCode, code, sizeof(gSpCode));
+    xSemaphoreGive(gMutex);
+  } else if (d["fill"] | false) {
+    if (!SPOTIFY_REFRESH[0]) { server.send(400, "text/plain", "Not linked"); return; }
+    strlcpy(gSpStatus, "filling", sizeof(gSpStatus));
+    gReqSongFill = true;
+  } else if (d["unlink"] | false) {
+    SPOTIFY_REFRESH[0] = SPOTIFY_PLAYLIST[0] = 0;
+    prefs.remove("sprt");
+    prefs.remove("sppl");
+    gSpStatus[0] = 0;
+  }
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
 static void handleReset() {                 // "Forget all settings": back to first-start setup
   prefs.clear();
   server.send(200, "application/json", "{\"ok\":true}");
@@ -5582,6 +6299,7 @@ static void webBegin() {
   server.on("/games", handleGames);
   server.on("/game", HTTP_POST, [] { if (jsonOnly()) handleGame(); });
   server.on("/aireset", HTTP_POST, [] { if (jsonOnly()) handleAiReset(); });
+  server.on("/spotify", HTTP_POST, [] { if (jsonOnly()) handleSpotify(); });
   server.onNotFound(redirectHome);
   server.begin();
   if (MDNS.begin(gHost)) MDNS.addService("http", "tcp", 80);     // http://momowo-xxxx.local
@@ -5687,6 +6405,7 @@ static bool pageAvailable(Page p) {         // internet-only pages hide only if 
   bool wifiSet = WIFI_SSID[0] || WIFI2_SSID[0];
   if (p == P_WEATHER) return wifiSet || getWeather().valid;
   if (p == P_NEWS) return wifiSet || gNews.count > 0;
+  if (p == P_SONG) return SONGS_ON && wifiSet;
   return true;
 }
 
@@ -5788,6 +6507,7 @@ static void handleGesture(Gesture g, uint32_t now) {
         case P_WEATHER: gReqWeather = true; toast(T(S_UPDATING)); break;
         case P_NEWS:    gReqNews = true; toast(T(S_UPDATING_NEWS)); break;
         case P_QUOTE:   gReqQuote = true; toast(T(S_NEW_QUOTE)); break;
+        case P_SONG:    gReqSong = true; toast(T(S_NEW_SONG)); break;
         case P_FOCUS:   focusToggle(now); break;
         default: break;
       }
@@ -5817,6 +6537,7 @@ static void handleMotion(motion::Event ev, uint32_t now) {
     case motion::EV_SHAKE:
       gShakesToday++;
       if (gPage == P_QUOTE) { gReqQuote = true; toast(T(S_NEW_QUOTE)); PLAY(SND_ON); break; }   // shake for a quote
+      if (gPage == P_SONG) { gReqSong = true; toast(T(S_NEW_SONG)); PLAY(SND_ON); break; }     // or a song
       gPage = P_BUDDY;
       gPageEnter = now;
       setMood(M_DIZZY, 3000);
@@ -5968,8 +6689,8 @@ static void rollTick(uint32_t now) {
   float ax, ay;
   motion::tiltFrom(gMs, gGame.holdRef, ax, ay);
   if (MOTION_MIRROR) ax = -ax;
-  gGame.vx += ax * 170 * dt;
-  gGame.vy += ay * 170 * dt;
+  gGame.vx -= ax * 170 * dt;                // sensor sits the other way round in the case:
+  gGame.vy -= ay * 170 * dt;                // flip both so the star rolls downhill
   const float f = 1 - 1.2f * dt;            // a little friction
   gGame.vx *= f;
   gGame.vy *= f;
@@ -7113,6 +7834,7 @@ static void render(uint32_t now, bool sleeping) {
     case P_WEATHER: drawWeatherPage(now); break;
     case P_NEWS:    drawNewsPage(now);    break;
     case P_QUOTE:   drawQuotePage(now);   break;
+    case P_SONG:    drawSongPage(now);    break;
     case P_FOCUS:   drawFocusPage(now);   break;
     default: break;
   }
@@ -7195,13 +7917,43 @@ void setup() {
   for (uint32_t t0 = millis(); !Serial && millis() - t0 < 1500; ) delay(10);   // let USB Serial attach
   pinMode(TOUCH_PIN, INPUT_PULLDOWN);       // TTP223 idles LOW; pulldown keeps GPIO12 safe
 
-  Wire.begin(OLED_SDA, OLED_SCL);
+  Serial.printf("[boot] reset reason %d\n", (int)esp_reset_reason());   // 9 = brownout (weak power)
+  // I2C bus rescue: after a reset in the middle of a read, the MPU6050 or the screen can still be
+  // holding SDA low, and then nothing on the bus answers. Clock SCL until it lets go, then STOP.
+  auto i2cRescue = []() {
+    pinMode(OLED_SDA, INPUT_PULLUP);
+    pinMode(OLED_SCL, OUTPUT_OPEN_DRAIN);
+    digitalWrite(OLED_SCL, HIGH);
+    delayMicroseconds(10);
+    for (int i = 0; i < 18 && digitalRead(OLED_SDA) == LOW; i++) {
+      digitalWrite(OLED_SCL, LOW);  delayMicroseconds(10);
+      digitalWrite(OLED_SCL, HIGH); delayMicroseconds(10);
+    }
+    pinMode(OLED_SDA, OUTPUT_OPEN_DRAIN);   // STOP: SDA rises while SCL is high
+    digitalWrite(OLED_SDA, LOW);  delayMicroseconds(10);
+    digitalWrite(OLED_SDA, HIGH); delayMicroseconds(10);
+    pinMode(OLED_SDA, INPUT);
+    pinMode(OLED_SCL, INPUT);
+  };
   delay(250);                               // SH1106 needs a moment after power-up
-  if (!display.begin(OLED_ADDR, true)) {
-    Serial.println("SH1106 not found - check wiring / address (0x3C or 0x3D)");
-    for (;;) delay(1000);
+  bool screenOk = false;
+  for (int i = 0; i < 6 && !screenOk; i++) {   // a cold or slow screen gets a few more tries
+    if (i) { Wire.end(); delay(200 * i); }
+    i2cRescue();
+    Wire.begin(OLED_SDA, OLED_SCL);
+    Wire.setTimeOut(50);
+    screenOk = display.begin(OLED_ADDR, true);
+    if (!screenOk) Serial.printf("[boot] screen did not answer (try %d)\n", i + 1);
+  }
+  if (!screenOk) {                          // never hang with a black screen: start again
+    Serial.println("SH1106 not found - check wiring / address (0x3C or 0x3D). Restarting in 5 s");
+    Wire.end();
+    delay(5000);
+    ESP.restart();
   }
   display.setContrast(CONTRAST_DAY);
+  display.oled_command(0xD5);               // display clock: fastest oscillator, divide by 1, so the
+  display.oled_command(0xF0);               // screen refreshes faster and phone cameras see fewer dark bands
   display.cp437(true);
   display.setTextWrap(false);
   display.setTextColor(SH110X_WHITE);
@@ -7209,6 +7961,7 @@ void setup() {
   prefs.begin("deskbuddy", false);          // saved settings (storage name kept from DeskBuddy days)
   loadSettings();
   loadMemory();                             // what Momowo knew before it was switched off
+  loadSongs();
   makeNames();
   if (prefs.isKey("tzoff")) setTzOffset(prefs.getInt("tzoff", 0));
   prefs.getString("tzrule", gTzRule, sizeof(gTzRule));
@@ -7373,11 +8126,18 @@ void loop() {
 
   static uint32_t lastSweep = 0;
   if (now - lastSweep >= 1000) { lastSweep = now; sweepTimers(now); }
+  if (gSongAddedN) {                        // netTask filled the Spotify playlist
+    char m[96];
+    snprintf(m, sizeof(m), T(S_SONG_ADDED), (int)gSongAddedN);
+    gSongAddedN = 0;
+    announce(m, 6000);
+    PLAY(SND_ON);
+  }
   bool sleeping = gNight && !notYet(now, gNightAwakeUntil) && fState != F_RUN && fState != F_BREATHE && !gSetupMode;
   const bool idle = !sleeping && !gSetupMode && fState == F_IDLE && !gameActive(now) &&
                     now - gLastInteraction > 20UL * 60 * 1000;
   static uint8_t contrast = CONTRAST_DAY;
-  const uint8_t wantContrast = sleeping ? CONTRAST_NIGHT : idle ? CONTRAST_IDLE : CONTRAST_DAY;
+  const uint8_t wantContrast = gSetupMode ? CONTRAST_QR : sleeping ? CONTRAST_NIGHT : idle ? CONTRAST_IDLE : CONTRAST_DAY;
   if (wantContrast != contrast) { contrast = wantContrast; display.setContrast(contrast); }
   if (sleeping != gSleeping) {
     gSleeping = sleeping;

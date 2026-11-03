@@ -256,6 +256,13 @@ enum Str : uint16_t {
   S_GM_MS,
   S_GM_TAP_AVG,
   S_GM_TAP_BEST,
+  S_SONG_FOR_YOU,
+  S_SONG_WHY,
+  S_SONG_FINDING,
+  S_NEW_SONG,
+  S_SONG_NEED,
+  S_SONG_LIKE,
+  S_SONG_ADDED,
   S_COUNT
 };
 
@@ -511,6 +518,13 @@ static const char* const STR[S_COUNT][L_COUNT] = {
   {"%d ms", "%d 毫秒", "%d 毫秒", "%d ms", "%d ms", "%d ms", "%d ミリ秒", "%d ms"},   // GM_MS
   {"Average %d ms", "平均 %d 毫秒", "平均 %d 毫秒", "Rata-rata %d ms", "Schnitt %d ms", "Moyenne %d ms", "平均 %d ミリ秒", "Media %d ms"},   // GM_TAP_AVG
   {"New record: %d ms!", "新纪录：%d 毫秒！", "新紀錄：%d 毫秒！", "Rekor baru: %d ms!", "Rekord: %d ms!", "Record : %d ms !", "新記録：%d ミリ秒！", "Récord: %d ms!"},   // GM_TAP_BEST
+  {"Song for you", "为你选歌", "為你選歌", "Lagu untukmu", "Lied für dich", "Chanson pour toi", "おすすめソング", "Canción para ti"},   // SONG_FOR_YOU
+  {"Why this song", "为什么选这首", "為什麼選這首", "Kenapa lagu ini", "Warum dieses Lied", "Pourquoi celle-ci", "えらんだわけ", "Por qué esta"},   // SONG_WHY
+  {"Finding a song...", "正在为你选歌…", "正在為你選歌…", "Mencari lagu...", "Suche ein Lied...", "Je cherche...", "ソングをさがし中…", "Buscando canción..."},   // SONG_FINDING
+  {"Another song...", "换一首…", "換一首…", "Lagu lain...", "Anderes Lied...", "Autre chanson...", "ほかのソング…", "Otra canción..."},   // NEW_SONG
+  {"For song picks, add an AI key or a Spotify app on my phone page.", "想让我推荐歌曲，请在手机设置页添加 AI 密钥或 Spotify 应用。", "想讓我推薦歌曲，請在手機設定頁新增 AI 金鑰或 Spotify 應用。", "Untuk rekomendasi lagu, tambahkan kunci AI atau aplikasi Spotify di halaman ponselku.", "Für Liedtipps: KI-Schlüssel oder Spotify-App auf meiner Handy-Seite eintragen.", "Pour des chansons, ajoute une clé IA ou une app Spotify sur ma page téléphone.", "ソングのおすすめには、スマホの設定ページで AI キーか Spotify アプリを入れてね。", "Para recomendarte canciones, añade una clave de IA o una app de Spotify en mi página del móvil."},   // SONG_NEED
+  {"Because you like %s", "因为你喜欢%s", "因為你喜歡%s", "Karena kamu suka %s", "Weil du %s magst", "Parce que tu aimes %s", "%sがすきだから", "Porque te gusta %s"},   // SONG_LIKE
+  {"Added %d songs to your Spotify!", "已把 %d 首歌加入你的 Spotify！", "已把 %d 首歌加入你的 Spotify！", "%d lagu masuk Spotify-mu!", "%d Lieder in deinem Spotify!", "%d chansons ajoutées à ton Spotify !", "Spotify のリストに %d つ入れたよ！", "¡%d canciones añadidas a tu Spotify!"},   // SONG_ADDED
 };
 #define T(s) (STR[(s)][LANG < L_COUNT ? LANG : 0])
 

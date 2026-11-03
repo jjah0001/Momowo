@@ -1,4 +1,4 @@
-// Built-in Ancient Greek, modern and scripture quotes (the Chinese ones live in Momowo.ino with
+// Built-in European, modern and scripture quotes (the Chinese ones live in Momowo.ino with
 // their themes).
 // Quotes are shown in their original language (the Bible in English). The English line goes with
 // them: shown as the translation in English, and given to the AI so other translations stay faithful.
@@ -13,44 +13,82 @@ enum : uint16_t { QM_SPRING = 1, QM_SUMMER = 2, QM_AUTUMN = 4, QM_WINTER = 8, QM
 
 struct WorldQuote { const char* text; const char* who; const char* english; uint16_t moods; };
 
-static const WorldQuote GREEK_QUOTES[] = {
-  {"Τα πάντα ρει.", "Ηράκλειτος", "Everything flows.", QM_AUTUMN|QM_WIND|QM_RAIN},
-  {"Ποταμώ ουκ έστιν εμβήναι δις τω αυτώ.", "Ηράκλειτος", "You cannot step into the same river twice.", QM_RAIN|QM_AUTUMN},
-  {"Ήθος ανθρώπω δαίμων.", "Ηράκλειτος", "A person's character is their destiny.", QM_AUTUMN|QM_STARS},
-  {"Φύσις κρύπτεσθαι φιλεί.", "Ηράκλειτος", "Nature loves to hide.", QM_CLOUD|QM_MOON},
-  {"Γνώθι σαυτόν.", "Δελφοί", "Know yourself.", QM_STARS|QM_MOON|QM_AUTUMN},
-  {"Μηδέν άγαν.", "Δελφοί", "Nothing in excess.", QM_SUMMER},
-  {"Καιρόν γνώθι.", "Πιττακός", "Know the right moment.", QM_SPRING|QM_SUN},
-  {"Μέτρον άριστον.", "Κλεόβουλος", "Moderation is best.", QM_SUMMER|QM_AUTUMN},
-  {"Μελέτη το παν.", "Περίανδρος", "Practice is everything.", QM_SUN|QM_SUMMER},
-  {"Ο δε ανεξέταστος βίος ου βιωτός ανθρώπω.", "Σωκράτης", "The unexamined life is not worth living.", QM_STARS|QM_MOON|QM_AUTUMN},
-  {"Εν οίδα ότι ουδέν οίδα.", "Σωκράτης", "I know one thing: that I know nothing.", QM_STARS|QM_MOON},
-  {"Αρχή ήμισυ παντός.", "Πλάτων", "The beginning is half of everything.", QM_SPRING|QM_SUN},
-  {"Μία χελιδών έαρ ου ποιεί.", "Αριστοτέλης", "One swallow does not make a spring.", QM_SPRING},
-  {"Ο άνθρωπος φύσει πολιτικόν ζώον.", "Αριστοτέλης", "Humans are by nature social beings.", QM_SUMMER|QM_SUN},
-  {"Ο βίος βραχύς, η δε τέχνη μακρή.", "Ιπποκράτης", "Life is short, and the art is long.", QM_AUTUMN},
-  {"Χρόνος γαρ ευμαρής θεός.", "Σοφοκλής", "Time is a gentle god.", QM_WINTER|QM_MOON|QM_CLOUD},
-  {"Λάθε βιώσας.", "Επίκουρος", "Live quietly, unnoticed.", QM_MOON|QM_STARS|QM_WINTER},
-  {"Κοσμοπολίτης ειμί.", "Διογένης", "I am a citizen of the world.", QM_SUMMER|QM_SUN},
-  {"Εύρηκα!", "Αρχιμήδης", "I have found it!", QM_SUN},
-  {"Δος μοι πα στω και ταν γαν κινάσω.", "Αρχιμήδης", "Give me a place to stand and I will move the earth.", QM_SUN|QM_SUMMER},
-  {"Ταράσσει τους ανθρώπους ου τα πράγματα, αλλά τα δόγματα.", "Επίκτητος",
-   "People are troubled not by things, but by their opinions about things.", QM_RAIN|QM_WIND|QM_CLOUD},
-  {"Των όντων τα μεν εστίν εφ' ημίν, τα δε ουκ εφ' ημίν.", "Επίκτητος",
-   "Some things are up to us, and some are not.", QM_WIND|QM_CLOUD|QM_SNOW},
-  {"Βάπτεται υπό των φαντασιών η ψυχή.", "Μάρκος Αυρήλιος", "The soul takes on the colour of its thoughts.", QM_AUTUMN|QM_CLOUD},
-  {"Ο κόσμος αλλοίωσις, ο βίος υπόληψις.", "Μάρκος Αυρήλιος", "The world is change; life is what we make of it.", QM_AUTUMN|QM_WIND},
+// European thinkers and writers, each in the language they wrote in. The English line is the
+// translation shown in English (nullptr for English writers) and is given to the AI so other
+// translations stay faithful. Only authors whose works are long out of copyright.
+enum EuroLang : uint8_t { EL_GREEK, EL_LATIN, EL_ENGLISH, EL_FRENCH, EL_GERMAN, EL_ITALIAN, EL_SPANISH,
+                          EL_PORTUGUESE, EL_RUSSIAN };
+static const char* const EURO_LANG_NAME[] = {"Ancient Greek", "Latin", "English", "French", "German",
+                                             "Italian", "Spanish", "Portuguese", "Russian"};
+struct EuroQuote { const char* text; const char* who; const char* english; uint8_t lang; uint16_t moods; };
 
+static const EuroQuote EUROPE_QUOTES[] = {
+  // Ancient Greek
+  {"Τα πάντα ρει.", "Heraclitus", "Everything flows.", EL_GREEK, QM_AUTUMN|QM_WIND|QM_RAIN},
+  {"Ποταμώ ουκ έστιν εμβήναι δις τω αυτώ.", "Heraclitus", "You cannot step into the same river twice.", EL_GREEK, QM_RAIN|QM_AUTUMN},
+  {"Γνώθι σαυτόν.", "Delphic maxim", "Know yourself.", EL_GREEK, QM_STARS|QM_MOON|QM_AUTUMN},
+  {"Μηδέν άγαν.", "Delphic maxim", "Nothing in excess.", EL_GREEK, QM_SUMMER},
+  {"Ο δε ανεξέταστος βίος ου βιωτός ανθρώπω.", "Socrates", "The unexamined life is not worth living.", EL_GREEK, QM_STARS|QM_MOON|QM_AUTUMN},
+  {"Εν οίδα ότι ουδέν οίδα.", "Socrates", "I know one thing: that I know nothing.", EL_GREEK, QM_STARS|QM_MOON},
+  {"Αρχή ήμισυ παντός.", "Plato", "The beginning is half of everything.", EL_GREEK, QM_SPRING|QM_SUN},
+  {"Μία χελιδών έαρ ου ποιεί.", "Aristotle", "One swallow does not make a spring.", EL_GREEK, QM_SPRING},
+  {"Ο βίος βραχύς, η δε τέχνη μακρή.", "Hippocrates", "Life is short, and the art is long.", EL_GREEK, QM_AUTUMN},
+  {"Λάθε βιώσας.", "Epicurus", "Live quietly, unnoticed.", EL_GREEK, QM_MOON|QM_STARS|QM_WINTER},
+  {"Ταράσσει τους ανθρώπους ου τα πράγματα, αλλά τα δόγματα.", "Epictetus",
+   "People are troubled not by things, but by their opinions about things.", EL_GREEK, QM_RAIN|QM_WIND|QM_CLOUD},
+  {"Βάπτεται υπό των φαντασιών η ψυχή.", "Marcus Aurelius", "The soul takes on the colour of its thoughts.", EL_GREEK, QM_AUTUMN|QM_CLOUD},
+  // Latin
+  {"Carpe diem, quam minimum credula postero.", "Horace", "Seize the day, trusting as little as possible in tomorrow.", EL_LATIN, QM_SUN|QM_SPRING|QM_SUMMER},
+  {"Dum loquimur, fugerit invida aetas.", "Horace", "While we are talking, envious time has already fled.", EL_LATIN, QM_AUTUMN|QM_WIND},
+  {"Non est ad astra mollis e terris via.", "Seneca", "There is no easy way from the earth to the stars.", EL_LATIN, QM_STARS|QM_WINTER|QM_SNOW},
+  {"Dum differtur vita transcurrit.", "Seneca", "While we put things off, life rushes past.", EL_LATIN, QM_AUTUMN|QM_WIND},
+  {"Si vis amari, ama.", "Seneca", "If you want to be loved, love.", EL_LATIN, QM_SPRING|QM_SUN},
+  {"Gutta cavat lapidem.", "Ovid", "Dripping water hollows out stone.", EL_LATIN, QM_RAIN|QM_WINTER},
+  {"Vivere est cogitare.", "Cicero", "To live is to think.", EL_LATIN, QM_MOON|QM_STARS},
+  // English
+  {"This above all: to thine own self be true.", "Shakespeare", nullptr, EL_ENGLISH, QM_SUN|QM_SPRING},
+  {"We are such stuff as dreams are made on, and our little life is rounded with a sleep.", "Shakespeare", nullptr, EL_ENGLISH, QM_MOON|QM_STARS},
+  {"No man is an island, entire of itself.", "John Donne", nullptr, EL_ENGLISH, QM_CLOUD|QM_WINTER},
+  // French
+  {"Il faut cultiver notre jardin.", "Voltaire", "We must tend our garden.", EL_FRENCH, QM_SPRING|QM_SUMMER|QM_SUN},
+  {"Le cœur a ses raisons que la raison ne connaît point.", "Pascal", "The heart has its reasons, which reason does not know.", EL_FRENCH, QM_MOON|QM_STARS|QM_AUTUMN},
+  {"Tout le malheur des hommes vient d'une seule chose, qui est de ne savoir pas demeurer en repos dans une chambre.", "Pascal",
+   "All of humanity's troubles come from one thing: not knowing how to sit quietly in a room.", EL_FRENCH, QM_RAIN|QM_WINTER|QM_SNOW},
+  {"Je pense, donc je suis.", "Descartes", "I think, therefore I am.", EL_FRENCH, QM_STARS|QM_MOON},
+  {"Patience et longueur de temps font plus que force ni que rage.", "La Fontaine", "Patience and time do more than strength or rage.", EL_FRENCH, QM_RAIN|QM_WINTER|QM_CLOUD},
+  {"Que sais-je ?", "Montaigne", "What do I know?", EL_FRENCH, QM_CLOUD|QM_MOON},
+  // German
+  {"Es irrt der Mensch, so lang er strebt.", "Goethe", "As long as we strive, we make mistakes.", EL_GERMAN, QM_CLOUD|QM_RAIN|QM_AUTUMN},
+  {"Edel sei der Mensch, hilfreich und gut!", "Goethe", "Let people be noble, helpful and good!", EL_GERMAN, QM_SUN|QM_SUMMER},
+  {"Habe Mut, dich deines eigenen Verstandes zu bedienen!", "Kant", "Have the courage to use your own understanding!", EL_GERMAN, QM_SPRING|QM_SUN},
+  {"Der bestirnte Himmel über mir und das moralische Gesetz in mir.", "Kant", "The starry sky above me and the moral law within me.", EL_GERMAN, QM_STARS|QM_MOON},
+  {"Ohne Musik wäre das Leben ein Irrtum.", "Nietzsche", "Without music, life would be a mistake.", EL_GERMAN, QM_SUMMER|QM_SUN},
+  // Italian
+  {"E quindi uscimmo a riveder le stelle.", "Dante", "And then we came out to see the stars again.", EL_ITALIAN, QM_STARS|QM_MOON|QM_WINTER},
+  {"Fatti non foste a viver come bruti, ma per seguir virtute e canoscenza.", "Dante",
+   "You were not made to live like beasts, but to follow virtue and knowledge.", EL_ITALIAN, QM_SUN|QM_SPRING},
+  {"Nel mezzo del cammin di nostra vita mi ritrovai per una selva oscura.", "Dante",
+   "Midway along the journey of our life, I found myself in a dark wood.", EL_ITALIAN, QM_AUTUMN|QM_CLOUD},
+  {"E il naufragar m'è dolce in questo mare.", "Leopardi", "And to be shipwrecked is sweet to me in this sea.", EL_ITALIAN, QM_MOON|QM_STARS|QM_WIND},
+  // Spanish
+  {"Caminante, no hay camino, se hace camino al andar.", "Antonio Machado", "Traveller, there is no road; the road is made by walking.", EL_SPANISH, QM_SPRING|QM_SUN|QM_WIND},
+  {"Toda la vida es sueño, y los sueños, sueños son.", "Calderon de la Barca", "All of life is a dream, and dreams are only dreams.", EL_SPANISH, QM_MOON|QM_STARS},
+  {"El que lee mucho y anda mucho, ve mucho y sabe mucho.", "Cervantes", "Whoever reads much and walks much sees much and knows much.", EL_SPANISH, QM_RAIN|QM_WINTER|QM_CLOUD},
+  {"La diligencia es madre de la buena ventura.", "Cervantes", "Diligence is the mother of good fortune.", EL_SPANISH, QM_SUN|QM_SUMMER},
+  // Portuguese
+  {"Tudo vale a pena se a alma não é pequena.", "Fernando Pessoa", "Everything is worth it if the soul is not small.", EL_PORTUGUESE, QM_SUN|QM_SUMMER},
+  {"Mudam-se os tempos, mudam-se as vontades.", "Camoes", "Times change, and so do our wishes.", EL_PORTUGUESE, QM_AUTUMN|QM_WIND},
+  // Russian
+  {"Все счастливые семьи похожи друг на друга, каждая несчастливая семья несчастлива по-своему.", "Leo Tolstoy",
+   "All happy families are alike; each unhappy family is unhappy in its own way.", EL_RUSSIAN, QM_AUTUMN|QM_CLOUD},
+  {"Красота спасёт мир.", "Dostoevsky", "Beauty will save the world.", EL_RUSSIAN, QM_SPRING|QM_SUN},
 };
-static const int GREEK_COUNT = sizeof(GREEK_QUOTES) / sizeof(GREEK_QUOTES[0]);
+static const int EUROPE_COUNT = sizeof(EUROPE_QUOTES) / sizeof(EUROPE_QUOTES[0]);
 
-// English names for the Greek authors (for the AI prompts and the English source line)
-static const char* const GREEK_WHO_EN[][2] = {
-  {"Ηράκλειτος", "Heraclitus"}, {"Δελφοί", "Delphic maxim"}, {"Πιττακός", "Pittacus"},
-  {"Κλεόβουλος", "Cleobulus"}, {"Περίανδρος", "Periander"}, {"Σωκράτης", "Socrates"},
-  {"Πλάτων", "Plato"}, {"Αριστοτέλης", "Aristotle"}, {"Ιπποκράτης", "Hippocrates"},
-  {"Σοφοκλής", "Sophocles"}, {"Επίκουρος", "Epicurus"}, {"Διογένης", "Diogenes"},
-  {"Αρχιμήδης", "Archimedes"}, {"Επίκτητος", "Epictetus"}, {"Μάρκος Αυρήλιος", "Marcus Aurelius"}};
+static const EuroQuote* europeQuote(const char* text) {   // a European quote by its original text
+  for (auto& q : EUROPE_QUOTES) if (!strcmp(q.text, text)) return &q;
+  return nullptr;
+}
 
 static const WorldQuote MODERN_QUOTES[] = {
   {"Nothing in life is to be feared, it is only to be understood.", "Marie Curie", nullptr, QM_WIND|QM_RAIN},
@@ -74,11 +112,6 @@ static const WorldQuote MODERN_QUOTES[] = {
 
 };
 static const int MODERN_COUNT = sizeof(MODERN_QUOTES) / sizeof(MODERN_QUOTES[0]);
-
-static const char* greekWhoEnglish(const char* who) {
-  for (auto& e : GREEK_WHO_EN) if (!strcmp(e[0], who)) return e[1];
-  return who;
-}
 
 // Scripture: short, comforting verses. The Bible in the King James Version (English, public
 // domain); the Torah in unpointed Hebrew (the divine name written ה׳, as in many Jewish books), the
