@@ -64,9 +64,9 @@ The setup screen closes by itself after 10 minutes if no phone is connected. To 
 | Calendars | The normal calendar is always on. You can add any of these: Chinese lunar, Islamic (Hijri), Buddhist, Hindu and Jewish (Hebrew). If you turn on the Islamic calendar, you can also choose how prayer times are calculated, a later Asr time (Hanafi), a chime at each prayer, and a one-day adjustment to match your local moon sighting. |
 | Focus timer | How long you focus (15 to 90 minutes) and how long your breaks are (3 to 20 minutes). |
 | Motion | Turn Momowo's reactions to movement on or off, and choose how sensitive it is. If its eyes look the wrong way when you tilt it, tick *My eyes look the wrong way when tilted*. |
-| Sounds | Sound on or off, the volume, a click when you touch it, and a beep on the hour. |
+| Sounds | Sound on or off, a click when you touch it, and a beep on the hour. To make Momowo louder or quieter, turn its volume knob. |
 | News | Where the news comes from. Sources are grouped by language, and include Chinese sources from China, Singapore, Malaysia, Taiwan and Hong Kong, and Indonesian sources such as Kompas, ANTARA, detikNews and CNN Indonesia. You can also have the headlines translated into your language, choose a one-line summary or a short bulletin, and pick the character who reads you the news. |
-| Quotes | Tick any mix: ancient China, ancient Greece, modern thinkers, the Bible, the Quran, the Torah, the Dhammapada (the Buddha's sayings) and famous people you choose (type their names, for example *Einstein, Marie Curie*). Then choose whether the AI translates each quote or explains what it means for your day. |
+| Quotes | Tick any mix: ancient China, European thinkers and writers (each in their own language: Greek, Latin, English, French, German, Italian, Spanish, Portuguese or Russian), modern thinkers, the Bible, the Quran, the Torah, the Dhammapada (the Buddha's sayings) and famous people you choose (type their names, for example *Einstein, Marie Curie*). Then choose whether the AI translates each quote or explains what it means for your day. |
 | AI | Which AI service Momowo uses, its key, the model, how often it shares a new feeling (every 30 minutes to once a day, or never) and a daily limit (see section 9). |
 
 ---
@@ -160,7 +160,7 @@ You can choose one of the built-in characters, or type your own. Momowo looks up
 
 ### Quote
 
-Each quote is shown in its original language for 10 seconds (for example Greek, Hebrew, Arabic or classical Chinese; the Bible is in English), then a translation or explanation for 10 seconds. Hebrew and Arabic read right to left, and long verses scroll slowly.
+Each quote is shown in its original language for 10 seconds (for example Greek, Latin, French, German, Russian, Hebrew, Arabic or classical Chinese; the Bible is in English), then a translation or explanation for 10 seconds. Hebrew and Arabic read right to left, and long verses scroll slowly.
 
 Quotes suit the moment: rainy days bring comfort and patience, sunny mornings bring hope, nights bring rest, and autumn brings change. A new quote comes when the weather or time of day changes. Shake Momowo, or hold the touch spot, for a new one any time.
 
@@ -273,6 +273,7 @@ If you change to a different service later, tap **Save** before switching, or th
 | My Wi-Fi isn't in the list, or Momowo can't connect | Momowo only works with 2.4 GHz Wi-Fi. Many routers have two networks; pick the one without "5G" in its name, or ask whoever looks after your Wi-Fi. Check the password. The reason Momowo couldn't connect is shown at the top of the settings page. |
 | Momowo is using my backup Wi-Fi | It tries your home Wi-Fi again every 10 minutes and switches back when it can. |
 | The clock says "Syncing time…" | Some office or school Wi-Fi blocks the time service. Momowo then takes the time from the next weather or news update. If it still can't, it shows how to set the time from your phone. |
+| Momowo is too loud or too quiet | Turn its volume knob. If you hear nothing at all, check that sound is switched on in the settings. |
 | The time is wrong after a power cut | Open the settings page once, and Momowo takes the time from your phone. |
 | The news doesn't load | Hold the touch spot on the News page to try again, or choose another news source. |
 | Momowo jumps or gets dizzy when I bump the desk | Choose a lower motion sensitivity on the settings page. |

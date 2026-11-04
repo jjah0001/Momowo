@@ -28,7 +28,7 @@ You set it up entirely from your phone, so there's no app to install and no codi
 
 | Path | What it is |
 | --- | --- |
-| [`Momowo_V2/`](Momowo_V2) | The Arduino sketch. Open `Momowo_V2.ino`, and the other files open as tabs. |
+| `Momowo_V2.ino` + `.h` files | The Arduino sketch. Clone into a folder named `Momowo_V2`, open `Momowo_V2.ino`, and the other files open as tabs. |
 | [`Momowo-esp32c3-merged.bin`](Momowo-esp32c3-merged.bin) | Ready-to-flash firmware. Write it at address `0x0`, for example with the [ESP Web Flasher](https://espressif.github.io/esptool-js/). |
 | [`enclosure/`](enclosure) | The 3D-printable case (front plate and back box), as STL for printing, STEP for other CAD tools and F3D for Fusion. |
 
@@ -49,7 +49,7 @@ The Build Guide has the full parts list and wiring table.
 1. Install the Arduino IDE and the **esp32** boards package by Espressif.
 2. Install these libraries: **Adafruit SH110X** (which brings in Adafruit GFX and BusIO), **ArduinoJson** 7 and **U8g2_for_Adafruit_GFX**.
 3. Choose the board **ESP32C3 Dev Module**, set *Partition Scheme* to **Huge APP (3MB No OTA)** and turn on *USB CDC On Boot*.
-4. Open `Momowo_V2/Momowo_V2.ino` and upload.
+4. Open `Momowo_V2.ino` (the clone folder must be named `Momowo_V2`) and upload.
 
 From the command line:
 

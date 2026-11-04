@@ -12,7 +12,7 @@
      WEATHER  Now, tomorrow, the next three days, sunrise and sunset; with the Islamic
               calendar on: prayer times, and imsak / iftar times for fasting
      NEWS     Headlines from any RSS feed; AI reporter sums up the news, can translate it
-     QUOTE    Classical Chinese, Ancient Greek or modern quotes; AI translates or explains
+     QUOTE    Classical Chinese, European or modern quotes; AI translates or explains
      FOCUS    Pomodoro timer with breaks, and a guided breathing exercise
      AI       Optional AI: feelings, translations, summaries, quote meanings
      MOTION   Optional MPU6050: pat or tap the case, shake, tilt, catch a drop
@@ -61,7 +61,7 @@
 #include "qrcode.h"                       // Espressif QR encoder (part of core 3.x)
 #include "astro.h"                        // sun, moon, prayer times, Hindu calendar
 #include "motion.h"                       // MPU6050 driver and gestures
-#include "quotes.h"                       // Ancient Greek and modern quotes
+#include "quotes.h"                       // European and modern quotes
 #include "games.h"                        // the mini-games page for the phone
 #include "font_small.h"                   // tiny 8 px weekday letters for the month grid
 
@@ -108,7 +108,7 @@ static uint8_t PRAY_METHOD = 255;       // astro::METHODS index; 255 = automatic
 static bool    ASR_HANAFI  = false;     // Asr when shadows are twice an object's length
 static bool    PRAY_REMIND = true;      // a soft chime and a note at each prayer time
 
-// Quotes: one bit per source, any mix (QKind order): classical Chinese, Ancient Greek, modern,
+// Quotes: one bit per source, any mix (QKind order): classical Chinese, European, modern,
 // Bible, Quran, Torah, Dhammapada, famous people. Momowo takes turns. AI: 0 translate, 1 explain
 static uint16_t QUOTE_MASK = 1;
 static uint8_t QUOTE_AI  = 0;
@@ -123,7 +123,6 @@ static bool    MOTION_MIRROR = false;   // eyes look the wrong way when tilted? 
 
 // Buzzer on GPIO27. Passive buzzers play tunes; active ones can only beep.
 static const bool    BUZZER_PASSIVE   = true;
-static uint8_t       BUZZER_VOLUME    = 6;      // 1-10 (passive buzzer only)
 static uint8_t       NEWS_VOICE       = 0;      // AI news reporter, chosen on the phone page (see VOICES; 6 = own)
 static char NEWS_VOICE_OWN[64] = "";       // the owner's own reporter, described on the phone page
 static bool          TOUCH_CLICK      = true;   // tiny tick on every touch
@@ -224,11 +223,11 @@ class SseSink : public Stream {
 };
 
 // ============================ HARDWARE ===============================
-#if CONFIG_IDF_TARGET_ESP32C3    // ESP32-C3 SuperMini: avoids strapping pins 2, 8 and 9
+#if CONFIG_IDF_TARGET_ESP32C3    // ESP32-C3 SuperMini: matches PCB: SDA GPIO9, SCL GPIO8 (both strapping pins)
 #define TOUCH_PIN  3
 #define BUZZER_PIN 4
-#define OLED_SDA   5
-#define OLED_SCL   6
+#define OLED_SDA   9
+#define OLED_SCL   8
 #else                            // classic ESP32 dev board
 #define TOUCH_PIN  12    // NOTE: GPIO12 is a boot strapping pin, must be LOW at power-up
 #define BUZZER_PIN 27
@@ -252,6 +251,7 @@ Adafruit_SH1106G display(SCREEN_W, SCREEN_H, &Wire, -1);
 static const uint8_t CONTRAST_DAY   = 0x80;   // 0x00-0xFF
 static const uint8_t CONTRAST_NIGHT = 0x01;   // dimmed while buddy sleeps
 static const uint8_t CONTRAST_IDLE  = 0x20;   // daytime, nobody near for 20 min (saves the OLED)
+static const uint8_t CONTRAST_QR    = 0x30;   // setup QR code: a dimmer white square doesn't glare in phone cameras
 
 U8G2_FOR_ADAFRUIT_GFX u8f;                    // draws UTF-8 Chinese into the same buffer
 // One 14 px subset font (common GB2312 hanzi) for the quote and its source,
@@ -300,10 +300,10 @@ struct WeatherData {
   float pm25 = -1, pm10 = -1;
 };
 
-enum QKind : uint8_t { Q_CHINESE, Q_GREEK, Q_MODERN, Q_BIBLE, Q_QURAN, Q_TORAH, Q_DHAMMA, Q_FAMOUS, Q_KINDS };
+enum QKind : uint8_t { Q_CHINESE, Q_EUROPE, Q_MODERN, Q_BIBLE, Q_QURAN, Q_TORAH, Q_DHAMMA, Q_FAMOUS, Q_KINDS };
 struct QuoteData {
   QKind kind = Q_CHINESE;
-  char text[256] = "";      // raw UTF-8: Chinese, Greek or English
+  char text[256] = "";      // raw UTF-8, in the original language
   char author[96] = "";
   char tag[8] = "";         // theme shown beside the source, e.g. "雨"
   char meaning[320] = "";   // meaning, translation or explanation (AI or built-in), UTF-8
@@ -1794,11 +1794,11 @@ static const Verse* verseList(QKind kind, int& count) {
   }
 }
 
-// The built-in English line for a Greek or scripture quote, found by its original text (nullptr: none)
+// The built-in English line for a European or scripture quote, found by its original text (nullptr: none)
 static const char* englishFor(QKind kind, const char* text) {
-  if (kind == Q_GREEK) {
-    for (auto& q : GREEK_QUOTES) if (!strcmp(q.text, text)) return q.english;
-    return nullptr;
+  if (kind == Q_EUROPE) {
+    const EuroQuote* q = europeQuote(text);
+    return q ? q->english : nullptr;
   }
   int count;
   const Verse* list = verseList(kind, count);
@@ -1807,11 +1807,17 @@ static const char* englishFor(QKind kind, const char* text) {
 }
 
 // Is the quote already in Momowo's language? Then the AI explains it instead of translating it.
-static bool quoteInMyLanguage(QKind kind) {
+static bool quoteInMyLanguage(QKind kind, const char* text = "") {
   if (kind == Q_CHINESE) return LANG == L_ZHS || LANG == L_ZHT;
   if (kind == Q_MODERN || kind == Q_BIBLE) return LANG == L_EN;   // English quotes
   if (kind >= Q_FAMOUS) return gQuote.lang == LANG;   // whatever language the AI found it in
-  return false;                             // Greek, Hebrew, Arabic, Pali
+  if (kind == Q_EUROPE) {                   // English, French, German or Spanish writers
+    const EuroQuote* q = europeQuote(text);
+    if (!q) return false;
+    return (q->lang == EL_ENGLISH && LANG == L_EN) || (q->lang == EL_FRENCH && LANG == L_FR) ||
+           (q->lang == EL_GERMAN && LANG == L_DE) || (q->lang == EL_SPANISH && LANG == L_ES);
+  }
+  return false;                             // Hebrew, Arabic, Pali
 }
 
 // Until the AI has translated it (or with no AI), the English line is the translation
@@ -1820,7 +1826,7 @@ static void englishFallback(QKind kind, const char* text, char* meaning, size_t 
   if (en && (QUOTE_AI == 0 || !AI_API_KEY[0])) utf8Copy(meaning, en, n);
 }
 
-// A Greek, modern or scripture quote in its original language, with its source
+// A European, modern or scripture quote in its original language, with its source
 static void setWorldQuote(QKind kind, const char* text, const char* who) {
   xSemaphoreTake(gMutex, portMAX_DELAY);
   gQuote.kind = kind;
@@ -1847,13 +1853,13 @@ static int pickSuited(const uint16_t* moods, int count, QTheme th, int last) {
   return idx[esp_random() % n];
 }
 
-static bool pickGreekQuote(QTheme th) {
+static bool pickEuropeQuote(QTheme th) {
+  static_assert(EUROPE_COUNT <= 64, "pickSuited looks at 64 quotes at most");
   static int last = -1;
-  uint16_t moods[GREEK_COUNT];
-  for (int i = 0; i < GREEK_COUNT; i++) moods[i] = GREEK_QUOTES[i].moods;
-  int i = last = pickSuited(moods, GREEK_COUNT, th, last);
-  const WorldQuote& q = GREEK_QUOTES[i];
-  setWorldQuote(Q_GREEK, q.text, greekWhoEnglish(q.who));
+  uint16_t moods[EUROPE_COUNT];
+  for (int i = 0; i < EUROPE_COUNT; i++) moods[i] = EUROPE_QUOTES[i].moods;
+  int i = last = pickSuited(moods, EUROPE_COUNT, th, last);
+  setWorldQuote(Q_EUROPE, EUROPE_QUOTES[i].text, EUROPE_QUOTES[i].who);
   return true;
 }
 
@@ -1881,7 +1887,7 @@ static bool pickModernQuote(QTheme th) {
 }
 
 // Online: a web quote for the theme; offline (or if the web doesn't answer): built-in.
-// Greek and modern quotes follow the owner's choice on the phone page ("a mix" takes turns).
+// European and modern quotes follow the owner's choice on the phone page ("a mix" takes turns).
 static bool pickVerse(QKind kind, QTheme th) {
   int count;
   const Verse* list = verseList(kind, count);
@@ -2018,7 +2024,7 @@ static bool fetchQuote(QTheme th) {
     turn = (turn + 1) % Q_KINDS;
     if (mask >> turn & 1) break;
   }
-  if (turn == Q_GREEK) return pickGreekQuote(th);   // every source follows the moment's theme
+  if (turn == Q_EUROPE) return pickEuropeQuote(th);   // every source follows the moment's theme
   if (turn == Q_MODERN) return pickModernQuote(th);
   if (turn == Q_FAMOUS) return fetchFamousQuote(th) || pickModernQuote(th);   // no key: modern
   if (turn != Q_CHINESE) return pickVerse((QKind)turn, th);
@@ -2472,7 +2478,7 @@ static void explainQuote() {
   bool known = gQuote.meaning[0] != 0;      // built-in quotes bring their own English line
   xSemaphoreGive(gMutex);
   // A quote already in the owner's language gets an explanation, since there is nothing to translate
-  const bool explain = QUOTE_AI || quoteInMyLanguage(kind);
+  const bool explain = QUOTE_AI || quoteInMyLanguage(kind, q);
   if (known && kind >= Q_FAMOUS) return;    // the AI sent it with the quote
   if (known && LANG == L_EN && !explain) return;   // other languages: Claude translates them too
   const char* who = src[0] == '-' ? src + 2 : src;
@@ -2519,20 +2525,24 @@ static void explainQuote() {
                "tradition; don't preach or claim religious authority.%s Reply with the reflection only.",
                book, who, text, LANG_NAME[LANG], lim, genderNote());
     }
-  } else if (!explain) {                    // Greek, modern or famous: a translation
-    if (LANG == L_EN && kind < Q_FAMOUS) return;   // the Greek's English line is already the translation
+  } else if (!explain) {                    // European, modern or famous: a translation
+    if (LANG == L_EN && kind < Q_FAMOUS) return;   // the built-in English line is already the translation
     const char* en = englishFor(kind, q);
+    char what[48] = "quote";
+    if (kind == Q_EUROPE) { const EuroQuote* e = europeQuote(q); if (e) snprintf(what, sizeof(what), "%s quote", EURO_LANG_NAME[e->lang]); }
     snprintf(prompt, sizeof(prompt),
              "Translate this %s by %s into natural %s, in at most %s.%s%s%s Reply with the translation only.\n%s",
-             kind == Q_GREEK ? "Ancient Greek saying" : "quote", who, LANG_NAME[LANG],
+             what, who, LANG_NAME[LANG],
              langIsCjk() ? "40 characters" : "25 words",
              en ? " In English it is \"" : "", en ? en : "", en ? "\"." : "", q);
-  } else {                                  // Greek or modern: what it means for today
+  } else {                                  // European or modern: what it means for today
     const char* en = englishFor(kind, q);
+    char what[48] = "Quote";
+    if (kind == Q_EUROPE) { const EuroQuote* e = europeQuote(q); if (e) snprintf(what, sizeof(what), "%s quote", EURO_LANG_NAME[e->lang]); }
     snprintf(prompt, sizeof(prompt),
              "%s by %s: \"%s\"%s%s%s\nIn %s, in at most %s, say what it means and how it could help someone "
              "feeling stressed today. %s%s Reply with the explanation only.",
-             kind == Q_GREEK ? "Ancient Greek saying" : "Quote", who, q,
+             what, who, q,
              en ? " (in English: \"" : "", en ? en : "", en ? "\")" : "",
              LANG_NAME[LANG], lim, calm, genderNote());
   }
@@ -3721,7 +3731,7 @@ static volatile uint32_t sndReqId  = 0;
 
 static void buzz(uint16_t hz) {
   if (!BUZZER_PASSIVE) { digitalWrite(BUZZER_PIN, hz ? HIGH : LOW); return; }
-  uint32_t duty = hz ? (uint32_t)511 * BUZZER_VOLUME * BUZZER_VOLUME / 100 : 0;   // 10-bit PWM
+  uint32_t duty = hz ? 511 : 0;             // 10-bit PWM, full strength: the knob (RV1) sets the volume
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   if (hz) ledcWriteTone(BUZZER_PIN, hz);
   ledcWrite(BUZZER_PIN, duty);
@@ -4936,8 +4946,8 @@ static void cjkLine(const char* s, int baseline, uint8_t align, uint32_t elapsed
   u8f.drawUTF8(x, baseline, s);
 }
 
-// Greek, Hebrew, Arabic and Pali quotes, each in a font with its letters
-enum : uint8_t { SC_LATIN, SC_GREEK, SC_HEBREW, SC_ARABIC, SC_LATIN_EXT };
+// Greek, Russian, Hebrew, Arabic, Pali and European quotes, each in a font with its letters
+enum : uint8_t { SC_LATIN, SC_GREEK, SC_HEBREW, SC_ARABIC, SC_LATIN_EXT, SC_CYRILLIC, SC_EUROPE };
 
 static uint8_t scriptOf(const char* s) {
   const uint8_t* p = (const uint8_t*)s;
@@ -4947,6 +4957,7 @@ static uint8_t scriptOf(const char* s) {
     if (c >= 0x590 && c <= 0x5FF) return SC_HEBREW;
     if (c >= 0x600 && c <= 0x6FF) return SC_ARABIC;
     if (c >= 0x370 && c <= 0x3FF) return SC_GREEK;
+    if (c >= 0x400 && c <= 0x4FF) return SC_CYRILLIC;
     if ((c >= 0x100 && c <= 0x24F) || (c >= 0x1E00 && c <= 0x1EFF)) sc = SC_LATIN_EXT;   // Pali: ā ṃ ṅ ...
   }
   return sc;
@@ -4957,6 +4968,7 @@ static const char* scriptLanguage(QKind kind, const char* text) {   // for the A
     case SC_HEBREW: return "Hebrew";
     case SC_ARABIC: return "Arabic";
     case SC_GREEK: return kind == Q_BIBLE ? "Koine Greek" : "Ancient Greek";
+    case SC_CYRILLIC: return "Russian";
     case SC_LATIN_EXT: return "Pali";
     default: return "language";
   }
@@ -4998,7 +5010,8 @@ static int arabicShape(uint16_t* cp, int n) {   // in place; returns the new len
 // Hebrew and Arabic; scrolls when it is too long
 static void drawScriptText(const char* text, uint8_t sc, int area, uint32_t el) {
   u8f.setFont(sc == SC_GREEK ? u8g2_font_cu12_t_greek : sc == SC_HEBREW ? u8g2_font_cu12_t_hebrew
-              : sc == SC_ARABIC ? u8g2_font_cu12_t_arabic : u8g2_font_fusion12_tc);
+              : sc == SC_ARABIC ? u8g2_font_cu12_t_arabic : sc == SC_CYRILLIC ? u8g2_font_cu12_t_cyrillic
+              : sc == SC_EUROPE ? u8g2_font_cu12_te : u8g2_font_fusion12_tc);
   static uint16_t cp[256];
   static uint8_t w[256];
   int n = 0;
@@ -5059,16 +5072,17 @@ static void drawScriptText(const char* text, uint8_t sc, int area, uint32_t el) 
   }
 }
 
-// Greek, modern or scripture quote: the original for 10 s, then the translation or the AI's reflection
+// European, modern or scripture quote: the original for 10 s, then the translation or the AI's reflection
 static void drawWorldQuote(QKind kind, const char* text, const char* author, const char* meaning, uint32_t el) {
-  const Str hdr = (QUOTE_AI || quoteInMyLanguage(kind)) && AI_API_KEY[0] ? S_REFLECTION : S_TRANSLATION;
+  const Str hdr = (QUOTE_AI || quoteInMyLanguage(kind, text)) && AI_API_KEY[0] ? S_REFLECTION : S_TRANSLATION;
   if (meaning[0] && el % 20000 >= 10000) {
     drawWrapped(meaning, bodyTop(), el % 20000 - 10000);
     pageHeader(T(hdr), nullptr);
     return;
   }
   const int AREA = SCREEN_H - 12;
-  const uint8_t sc = scriptOf(text);
+  uint8_t sc = scriptOf(text);
+  if (kind == Q_EUROPE && (sc == SC_LATIN || sc == SC_LATIN_EXT)) sc = SC_EUROPE;   // é, ü, ã, œ ... as written
   if (sc != SC_LATIN) {
     drawScriptText(text, sc, AREA, el % 10000);
   } else if (hasCjk(text)) {
@@ -5326,7 +5340,6 @@ static void loadSettings() {
   getStr(AI_MODEL_PREFS[AI_PROVIDER], AI_MODEL_CUSTOM, sizeof(AI_MODEL_CUSTOM));
   SLEEP_HOUR    = prefs.getChar("sleep", SLEEP_HOUR);
   WAKE_HOUR     = prefs.getChar("wake", WAKE_HOUR);
-  BUZZER_VOLUME = prefs.getUChar("vol", BUZZER_VOLUME);
   NEWS_VOICE    = prefs.getUChar("voice", NEWS_VOICE);
   if (NEWS_VOICE > 6) NEWS_VOICE = 0;
   TOUCH_CLICK   = prefs.getBool("click", TOUCH_CLICK);
@@ -5385,7 +5398,7 @@ static void handleInfo() {
   d["hobbies"] = OWNER_HOBBIES;
   if (prefs.isKey("lang")) d["lang"] = LANG;   // none saved yet: the page uses the phone's language
   d["h24"] = USE_24H;         d["sleep"] = SLEEP_HOUR;    d["wake"] = WAKE_HOUR;
-  d["sound"] = !gMuted;       d["vol"] = BUZZER_VOLUME;   d["click"] = TOUCH_CLICK;
+  d["sound"] = !gMuted;       d["click"] = TOUCH_CLICK;
   d["voice"] = NEWS_VOICE;    d["voicetxt"] = NEWS_VOICE_OWN;
   d["chime"] = HOURLY_CHIME;  d["news"] = NEWS_FEED_URL;  d["credit"] = NEWS_CREDIT;
   d["hasPass"] = WIFI_PASS[0] != 0;
@@ -5517,7 +5530,6 @@ static void handleSave() {
   if (d["h24"].is<bool>())   prefs.putBool("h24", d["h24"].as<bool>());
   if (d["sleep"].is<int>())  prefs.putChar("sleep", constrain(d["sleep"].as<int>(), 0, 23));
   if (d["wake"].is<int>())   prefs.putChar("wake", constrain(d["wake"].as<int>(), 0, 23));
-  if (d["vol"].is<int>())    prefs.putUChar("vol", constrain(d["vol"].as<int>(), 1, 10));
   if (d["voice"].is<int>())  prefs.putUChar("voice", constrain(d["voice"].as<int>(), 0, 6));
   if (d["sound"].is<bool>()) prefs.putBool("mute", !d["sound"].as<bool>());
   if (d["click"].is<bool>()) prefs.putBool("click", d["click"].as<bool>());
@@ -5968,8 +5980,8 @@ static void rollTick(uint32_t now) {
   float ax, ay;
   motion::tiltFrom(gMs, gGame.holdRef, ax, ay);
   if (MOTION_MIRROR) ax = -ax;
-  gGame.vx += ax * 170 * dt;
-  gGame.vy += ay * 170 * dt;
+  gGame.vx -= ax * 170 * dt;                // sensor sits the other way round in the case:
+  gGame.vy -= ay * 170 * dt;                // flip both so the star rolls downhill
   const float f = 1 - 1.2f * dt;            // a little friction
   gGame.vx *= f;
   gGame.vy *= f;
@@ -6424,7 +6436,8 @@ static void questTick(uint32_t now) {
     if (fabsf(tx) < 0.3f && fabsf(ty) < 0.3f) gGame.qarmed = true;
     return;
   }
-  const float v[4] = {-tx, tx, -ty, ty};    // left, right, up, down: the way star roll's ball rolls
+  const float v[4] = {tx, -tx, ty, -ty};    // left, right, up, down: flipped like star roll, since the
+                                            // sensor sits the other way round in the case
   const uint8_t k = want - QA_LEFT;
   if (v[k] > 0.5f) { questResult(true, now); return; }
   for (uint8_t j = 0; j < 4; j++)
@@ -7195,13 +7208,43 @@ void setup() {
   for (uint32_t t0 = millis(); !Serial && millis() - t0 < 1500; ) delay(10);   // let USB Serial attach
   pinMode(TOUCH_PIN, INPUT_PULLDOWN);       // TTP223 idles LOW; pulldown keeps GPIO12 safe
 
-  Wire.begin(OLED_SDA, OLED_SCL);
+  Serial.printf("[boot] reset reason %d\n", (int)esp_reset_reason());   // 9 = brownout (weak power)
+  // I2C bus rescue: after a reset in the middle of a read, the MPU6050 or the screen can still be
+  // holding SDA low, and then nothing on the bus answers. Clock SCL until it lets go, then STOP.
+  auto i2cRescue = []() {
+    pinMode(OLED_SDA, INPUT_PULLUP);
+    pinMode(OLED_SCL, OUTPUT_OPEN_DRAIN);
+    digitalWrite(OLED_SCL, HIGH);
+    delayMicroseconds(10);
+    for (int i = 0; i < 18 && digitalRead(OLED_SDA) == LOW; i++) {
+      digitalWrite(OLED_SCL, LOW);  delayMicroseconds(10);
+      digitalWrite(OLED_SCL, HIGH); delayMicroseconds(10);
+    }
+    pinMode(OLED_SDA, OUTPUT_OPEN_DRAIN);   // STOP: SDA rises while SCL is high
+    digitalWrite(OLED_SDA, LOW);  delayMicroseconds(10);
+    digitalWrite(OLED_SDA, HIGH); delayMicroseconds(10);
+    pinMode(OLED_SDA, INPUT);
+    pinMode(OLED_SCL, INPUT);
+  };
   delay(250);                               // SH1106 needs a moment after power-up
-  if (!display.begin(OLED_ADDR, true)) {
-    Serial.println("SH1106 not found - check wiring / address (0x3C or 0x3D)");
-    for (;;) delay(1000);
+  bool screenOk = false;
+  for (int i = 0; i < 6 && !screenOk; i++) {   // a cold or slow screen gets a few more tries
+    if (i) { Wire.end(); delay(200 * i); }
+    i2cRescue();
+    Wire.begin(OLED_SDA, OLED_SCL);
+    Wire.setTimeOut(50);
+    screenOk = display.begin(OLED_ADDR, true);
+    if (!screenOk) Serial.printf("[boot] screen did not answer (try %d)\n", i + 1);
+  }
+  if (!screenOk) {                          // never hang with a black screen: start again
+    Serial.println("SH1106 not found - check wiring / address (0x3C or 0x3D). Restarting in 5 s");
+    Wire.end();
+    delay(5000);
+    ESP.restart();
   }
   display.setContrast(CONTRAST_DAY);
+  display.oled_command(0xD5);               // display clock: fastest oscillator, divide by 1, so the
+  display.oled_command(0xF0);               // screen refreshes faster and phone cameras see fewer dark bands
   display.cp437(true);
   display.setTextWrap(false);
   display.setTextColor(SH110X_WHITE);
@@ -7377,7 +7420,7 @@ void loop() {
   const bool idle = !sleeping && !gSetupMode && fState == F_IDLE && !gameActive(now) &&
                     now - gLastInteraction > 20UL * 60 * 1000;
   static uint8_t contrast = CONTRAST_DAY;
-  const uint8_t wantContrast = sleeping ? CONTRAST_NIGHT : idle ? CONTRAST_IDLE : CONTRAST_DAY;
+  const uint8_t wantContrast = gSetupMode ? CONTRAST_QR : sleeping ? CONTRAST_NIGHT : idle ? CONTRAST_IDLE : CONTRAST_DAY;
   if (wantContrast != contrast) { contrast = wantContrast; display.setContrast(contrast); }
   if (sleeping != gSleeping) {
     gSleeping = sleeping;
