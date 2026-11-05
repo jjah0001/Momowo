@@ -15,6 +15,7 @@ You set it up entirely from your phone, so there's no app to install and no codi
 - **News with a reporter character.** An AI summary of the headlines, read in the voice of a character you choose. It sometimes connects a story to your hobbies. News sources include English, Chinese and Indonesian outlets.
 - **Quotes for the moment.** Classical Chinese poetry, Greek philosophy, the Bible, the Quran, the Torah, the Dhammapada, modern quotes and famous people you pick. Each is shown in its original language, then translated or explained in yours. The choice of quote suits the time of day, season and weather.
 - **Focus timer.** A Pomodoro timer with a guided breathing exercise during breaks.
+- **Wake-up alarm and nap timer.** Up to three alarms on chosen weekdays, woken by *Momowo Morning*, an original melody that starts soft and grows. Tap to snooze; hold its head (or shake it) to stop, then it tells you the day's weather.
 - **Games.** Rock paper scissors, tic-tac-toe, guess my number, Memory, Star roll (tilt Momowo to roll a ball), AI riddles, Quest (an AI adventure you play by tapping, holding, tilting and shaking Momowo) and Quick tap (a reaction game).
 - **Optional AI.** Connect Claude, ChatGPT, Kimi or DeepSeek to get kind thoughts through the day, the news reporter, translated quotes, riddles and quests. Everything else works without it, and you can cap how many AI requests it makes per day.
 - **Gentle at night.** Between bedtime and wake-up time it gets sleepy, dims, then switches its screen off.

@@ -252,6 +252,7 @@ Every `POST` must send `Content-Type: application/json` (an empty `{}` body is f
 - **Prayer:** `pmethod` (255 automatic, 0–10 the methods in `astro.h`), `hanafi`, `premind`, `hijriAdj` (−2 to 2)
 - **Quotes:** `qmask`, a bitmask: 1 Chinese, 2 Greek, 4 Modern, 8 Bible, 16 Quran, 32 Torah, 64 Dhammapada, 128 famous people; `famous` (the names, comma-separated); `qai` (0 translate, 1 explain). The older `qsrc` setting from earlier firmware is converted on first start.
 - **Focus:** `fmin` (5–90), `bmin` (1–30)
+- **Alarm:** `alarms` (up to three `[hour, minute, weekdays, on]`; weekdays is a bit mask, 1 = Sunday … 64 = Saturday, 0 = once), `aon` (all alarms on), `asnooze` (minutes, 0 = no snooze), `astop` (0 hold the pad 2 s, 1 shake 3 times), `anap` (nap timer minutes, 5–120)
 - **Motion:** `motion`, `msens` (1–3), `mmirror`
 
 Example: turn on the Islamic and Hindu calendars with prayer reminders:
