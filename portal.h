@@ -28,6 +28,9 @@ input[type=range]{-webkit-appearance:auto;appearance:auto;padding:0;border:0;acc
 .scale{display:flex;justify-content:space-between;font-size:12px;opacity:.6}
 .inset{border-left:3px solid var(--line);padding-left:12px;margin:6px 0 4px}
 .hint{font-size:13px;opacity:.7;margin:6px 0 0;line-height:1.4}a{color:var(--deep)}
+.alarm{border-top:1px solid var(--line);padding-top:4px;margin-top:10px}.alarm .check input[type=time]{flex:1;width:auto;-webkit-appearance:auto;appearance:auto}
+.days{display:flex;gap:4px;margin:8px 0 6px}.days button{flex:1;min-width:0;margin:0;padding:9px 0;font-size:13px;border-radius:10px;background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:600}
+.days button.on{background:var(--pink);border-color:var(--pink);color:#fff}
 .badge{display:inline-block;font-size:13px;padding:6px 10px;border-radius:10px;background:var(--soft);margin:4px 0}
 button{width:100%;font-size:17px;padding:15px;border:0;border-radius:16px;background:var(--deep);color:#fff;font-weight:700;margin-top:8px}
 button:disabled{opacity:.6}button.ghost{background:none;color:var(--ink);border:1px solid var(--line);font-weight:500;font-size:15px;padding:11px}
@@ -94,6 +97,15 @@ button:disabled{opacity:.6}button.ghost{background:none;color:var(--ink);border:
 <div class="row"><div><label for="fmin" data-t="fmin"></label><select id="fmin"></select></div>
 <div><label for="bmin" data-t="bmin"></label><select id="bmin"></select></div></div>
 <p class="hint" data-t="focusHint"></p></div>
+
+<div class="card"><h2>⏰ <span data-t="alarm"></span></h2><p class="sub" data-t="alarmSub"></p>
+<div class="check"><span data-t="alarmOn"></span><input id="aon" type="checkbox"></div>
+<div id="alarms"></div>
+<p class="hint" data-t="daysHint"></p>
+<div class="row"><div><label for="asnooze" data-t="snooze"></label><select id="asnooze"></select></div>
+<div><label for="anap" data-t="nap"></label><select id="anap"></select></div></div>
+<label for="astop" data-t="astop"></label><select id="astop"></select>
+<p class="hint" data-t="alarmHint"></p></div>
 
 <div class="card"><h2>🤸 <span data-t="motion"></span></h2>
 <p class="badge" id="mpu"></p>
@@ -213,6 +225,18 @@ focus:["Focus timer","专注计时","專注計時","Timer fokus","Fokus-Timer","
 fmin:["Focus for","专注","專注","Fokus selama","Fokus","Concentration","集中","Enfoque"],
 bmin:["Then rest for","然后休息","然後休息","Lalu istirahat","Dann Pause","Puis pause","休憩","Luego descanso"],
 min:["min","分钟","分鐘","menit","Min.","min","分","min"],
+alarm:["Wake-up alarm", "起床闹钟", "起床鬧鐘", "Alarm bangun", "Wecker", "Réveil", "目覚まし", "Despertador"],
+alarmSub:["Up to three alarms. I wake you with my own melody that starts soft and grows, and I ring even when sounds are off.", "最多三个闹钟。我会用自己的旋律叫醒你，由轻到响；即使关掉声音也会响。", "最多三個鬧鐘。我會用自己的旋律叫醒你，由輕到響；即使關掉聲音也會響。", "Hingga tiga alarm. Aku membangunkanmu dengan melodiku sendiri yang mulai pelan lalu makin keras, bahkan saat suara dimatikan.", "Bis zu drei Weckzeiten. Ich wecke dich mit meiner eigenen Melodie, die leise beginnt und lauter wird, auch wenn Töne aus sind.", "Jusqu'à trois réveils. Je te réveille avec ma propre mélodie, douce au début puis plus forte, même si les sons sont coupés.", "アラームは3つまで。小さな音から少しずつ大きくなる自分のメロディで起こすよ。音をオフにしていても鳴るよ。", "Hasta tres alarmas. Te despierto con mi propia melodía, que empieza suave y va creciendo, aunque los sonidos estén apagados."],
+alarmOn:["Alarms on", "开启闹钟", "開啟鬧鐘", "Alarm aktif", "Wecker an", "Réveils activés", "アラームをオン", "Alarmas activadas"],
+alarmN:["Alarm {n}", "闹钟 {n}", "鬧鐘 {n}", "Alarm {n}", "Wecker {n}", "Réveil {n}", "アラーム {n}", "Alarma {n}"],
+daysHint:["Pick the days for each alarm. No days picked: it rings once, then switches itself off.", "为每个闹钟选择日子。不选日子：只响一次，然后自动关闭。", "為每個鬧鐘選擇日子。不選日子：只響一次，然後自動關閉。", "Pilih hari untuk tiap alarm. Tanpa hari: berbunyi sekali, lalu mati sendiri.", "Wähle die Tage für jeden Wecker. Ohne Tage klingelt er einmal und schaltet sich dann aus.", "Choisis les jours de chaque réveil. Aucun jour : il sonne une fois, puis s'éteint.", "アラームごとに曜日を選んでね。曜日なし：1回だけ鳴って自動でオフになるよ。", "Elige los días de cada alarma. Sin días: suena una vez y luego se apaga sola."],
+snooze:["Snooze", "贪睡", "貪睡", "Tunda", "Schlummern", "Rappel", "スヌーズ", "Repetir"],
+snoozeOff:["No snooze", "不贪睡", "不貪睡", "Tanpa tunda", "Kein Schlummern", "Pas de rappel", "スヌーズなし", "Sin repetir"],
+nap:["Nap timer", "小睡计时", "小睡計時", "Timer tidur siang", "Nickerchen", "Sieste", "仮眠タイマー", "Siesta"],
+astop:["To stop the alarm", "关闭闹钟的方式", "關閉鬧鐘的方式", "Cara mematikan alarm", "Wecker ausschalten durch", "Pour arrêter le réveil", "アラームの止め方", "Para parar la alarma"],
+stop0:["Hold my head for 2 seconds", "按住我的头 2 秒", "按住我的頭 2 秒", "Tahan kepalaku 2 detik", "Kopf 2 Sekunden halten", "Maintenir ma tête 2 secondes", "頭を2秒長押し", "Mantener mi cabeza 2 segundos"],
+stop1:["Shake me 3 times (gets you moving)", "摇我 3 下（让你动起来）", "搖我 3 下（讓你動起來）", "Goyang aku 3 kali (biar kamu bergerak)", "Mich 3-mal schütteln (bringt dich in Schwung)", "Me secouer 3 fois (ça réveille)", "3回振る（体が目覚めるよ）", "Agitarme 3 veces (para ponerte en marcha)"],
+alarmHint:["A tap snoozes. On my Alarm page, hold me to switch all alarms on or off, or hold 2 seconds to start a nap timer (a 20-minute nap refreshes without the grogginess). Shaking needs the motion sensor; without it, hold my head.", "轻触即贪睡。在闹钟页面长按可开关所有闹钟，按住 2 秒开始小睡计时（小睡 20 分钟提神又不昏沉）。摇晃需要动作传感器；没有时请按住我的头。", "輕觸即貪睡。在鬧鐘頁面長按可開關所有鬧鐘，按住 2 秒開始小睡計時（小睡 20 分鐘提神又不昏沉）。搖晃需要動作感應器；沒有時請按住我的頭。", "Ketuk untuk menunda. Di halaman Alarm, tahan aku untuk menyalakan/mematikan semua alarm, atau tahan 2 detik untuk timer tidur siang (20 menit bikin segar tanpa pusing). Goyang butuh sensor gerak; tanpanya, tahan kepalaku.", "Tippen schlummert. Auf meiner Wecker-Seite: halten schaltet alle Wecker an/aus, 2 Sekunden halten startet ein Nickerchen (20 Minuten erfrischen, ohne benommen zu machen). Schütteln braucht den Bewegungssensor; sonst Kopf halten.", "Une touche active le rappel. Sur ma page Réveil, maintiens-moi pour tout activer ou couper, ou 2 secondes pour une sieste (20 minutes reposent sans engourdir). Secouer demande le capteur de mouvement ; sinon, maintiens ma tête.", "タップでスヌーズ。アラーム画面で長押しすると全アラームをオン/オフ、2秒長押しで仮眠タイマー（20分の仮眠ならぼんやりせずにすっきり）。振る止め方にはモーションセンサーが必要。ないときは頭を長押ししてね。", "Un toque pospone. En mi página Alarma, mantenme para encender o apagar todas, o 2 segundos para una siesta (20 minutos reponen sin dejarte aturdido). Agitar necesita el sensor de movimiento; si no, mantén mi cabeza."],
 focusHint:["Every fourth break is three times longer. Hold me for 2 seconds on the timer page for a calming breathing exercise.","每第四次休息会长三倍。在计时页面按住我 2 秒，可以做放松呼吸练习。","每第四次休息會長三倍。在計時頁面按住我 2 秒，可以做放鬆呼吸練習。","Setiap istirahat keempat tiga kali lebih lama. Tahan aku 2 detik di halaman timer untuk latihan napas.","Jede vierte Pause ist dreimal so lang. Halte mich 2 Sekunden auf der Timer-Seite für eine Atemübung.","Une pause sur quatre est trois fois plus longue. Maintiens-moi 2 s sur le minuteur pour un exercice de respiration.","4回目ごとの休憩は3倍長いよ。タイマー画面で2秒長押しすると深呼吸ができるよ。","Cada cuarto descanso es tres veces más largo. Mantenme 2 s en el temporizador para un ejercicio de respiración."],
 motion:["Motion sensor","动作传感器","動作感應器","Sensor gerak","Bewegungssensor","Capteur de mouvement","モーションセンサー","Sensor de movimiento"],
 mpuYes:["✅ MPU6050 found. Pat me, shake me or tilt me!","✅ 找到 MPU6050。拍拍我、摇摇我、歪歪我吧！","✅ 找到 MPU6050。拍拍我、搖搖我、歪歪我吧！","✅ MPU6050 ditemukan. Tepuk, goyang, atau miringkan aku!","✅ MPU6050 gefunden. Klopf, schüttel oder kipp mich!","✅ MPU6050 trouvé. Tapote-moi, secoue-moi, penche-moi !","✅ MPU6050 を見つけたよ。なでたり、振ったり、傾けたりしてね！","✅ MPU6050 encontrado. ¡Dame palmaditas, agítame o inclíname!"],
@@ -385,6 +409,10 @@ keep("pmethod",()=>fill($("pmethod"),[[255,t("auto")]].concat(METHODS.map((m,i)=
 keep("hijriAdj",()=>fill($("hijriAdj"),[[-2,"-2 "+t("dayU")],[-1,"-1 "+t("dayU")],[0,"0 ("+t("asCalc")+")"],[1,"+1 "+t("dayU")],[2,"+2 "+t("dayU")]]));
 keep("fmin",()=>fill($("fmin"),[15,20,25,30,40,45,50,60,90].map(m=>[m,m+" "+t("min")])));
 keep("bmin",()=>fill($("bmin"),[3,5,10,15,20].map(m=>[m,m+" "+t("min")])));
+keep("asnooze",()=>fill($("asnooze"),[[0,t("snoozeOff")]].concat([5,9,10,15].map(m=>[m,m+" "+t("min")]))));
+keep("anap",()=>fill($("anap"),[10,15,20,25,30,45,60,90].map(m=>[m,m+" "+t("min")])));
+keep("astop",()=>fill($("astop"),[[0,t("stop0")],[1,t("stop1")]]));
+alarmRows();
 keep("nstyle",()=>fill($("nstyle"),[[0,t("ns0")],[1,t("ns1")]]));
 keep("gender",()=>fill($("gender"),[0,1,2,3].map(i=>[i,t("g"+i)])));
 keep("qai",()=>fill($("qai"),[[0,t("qa0")],[1,t("qa1")]]));
@@ -432,6 +460,18 @@ std=Math.min(ch[0][1],ch[0][2]),dst=Math.max(ch[0][1],ch[0][2]),
 r=c=>{const d=new Date(c[0]+c[1]*6e4),n=d.getUTCDate(),last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();
 return",M"+(d.getUTCMonth()+1)+"."+(n+7>last?5:Math.ceil(n/7))+"."+d.getUTCDay()+"/"+d.getUTCHours()+(d.getUTCMinutes()?":"+String(d.getUTCMinutes()).padStart(2,"0"):"")};
 return"STD"+f(std)+"DST"+f(dst)+r(ch.find(c=>c[2]==dst))+r(ch.find(c=>c[2]==std))}catch(e){return""}}
+// Alarms: [hour, minute, weekdays (bit 0 Sunday), on]. The day buttons start on Monday.
+let alarms=[[7,0,62,0],[8,0,65,0],[6,30,62,0]];
+function wdName(d){try{return new Intl.DateTimeFormat(LOCALE[L],{weekday:"short",timeZone:"UTC"}).format(new Date(Date.UTC(2024,0,7+d)))}catch(e){return"SMTWTFS"[d]}}
+function alarmRead(){document.querySelectorAll("#alarms .alarm").forEach((r,i)=>{const v=$("at"+i).value||"07:00",[h,m]=v.split(":").map(Number);
+let days=0;r.querySelectorAll(".days button").forEach(b=>{if(b.classList.contains("on"))days|=1<<+b.dataset.d});alarms[i]=[h||0,m||0,days,$("ae"+i).checked?1:0]})}
+function alarmRows(){if($("alarms").children.length)alarmRead();const box=$("alarms");box.innerHTML="";
+alarms.forEach((a,i)=>{const r=document.createElement("div");r.className="alarm";
+r.innerHTML='<label for="at'+i+'"></label><div class="check"><input id="at'+i+'" type="time"><input id="ae'+i+'" type="checkbox"></div><div class="days"></div>';
+r.querySelector("label").textContent=t("alarmN").replace("{n}",i+1);
+r.querySelector("#at"+i).value=String(a[0]).padStart(2,"0")+":"+String(a[1]).padStart(2,"0");r.querySelector("#ae"+i).checked=!!a[3];
+const ds=r.querySelector(".days");[1,2,3,4,5,6,0].forEach(d=>{const b=document.createElement("button");b.type="button";b.dataset.d=d;b.textContent=wdName(d);
+if(a[2]>>d&1)b.classList.add("on");b.onclick=()=>b.classList.toggle("on");ds.appendChild(b)});box.appendChild(r)})}
 async function load(){try{const r=await fetch("/time",{method:"POST",headers:{"Content-Type":"application/json"},
 body:JSON.stringify({t:Math.floor(Date.now()/1000),off:-new Date().getTimezoneOffset()*60,tz:tzRule()})});if(r.ok)$("clk").style.display="block"}catch(e){}
 try{info=await(await fetch("/info")).json()}catch(e){}
@@ -447,6 +487,8 @@ $("voice").value=info.voice??0;$("voiceOwn").value=info.voicetxt||"";$("sound").
 const cals=info.cals??1;$("calCn").checked=cals&1;$("calIs").checked=cals&2;$("calBu").checked=cals&4;$("calHi").checked=cals&8;$("calJu").checked=cals&16;
 $("pmethod").value=info.pmethod??255;$("hanafi").checked=!!info.hanafi;$("premind").checked=info.premind??true;$("hijriAdj").value=info.hijriAdj??0;
 $("fmin").value=info.fmin??25;$("bmin").value=info.bmin??5;
+if(Array.isArray(info.alarms)&&info.alarms.length){alarms=info.alarms.slice(0,3);$("alarms").innerHTML="";alarmRows()}
+$("aon").checked=info.aon??true;$("asnooze").value=info.asnooze??9;$("anap").value=info.anap??20;$("astop").value=info.astop??0;
 $("motion").checked=info.motion??true;$("msens").value=info.msens??2;$("mmirror").checked=!!info.mmirror;
 $("aiprovider").value=info.aiprovider??0;aiProviderChanged();
 $("ntrans").checked=!!info.ntrans;$("nstyle").value=info.nstyle??0;const qm=info.qmask??1;for(let i=0;i<8;i++)$("qm"+i).checked=qm>>i&1;$("famous").value=info.famous||"";$("gender").value=info.gender??0;$("qai").value=info.qai??0;$("ailimit").value=info.ailimit??100;$("feelmin").value=info.feelmin??90;aiUsedShow(info.aiUsed??0);$("aieffort").value=info.aieffort??0;
@@ -459,7 +501,8 @@ h24:$("h24").checked,sleep:+$("sleep").value,wake:+$("wake").value,sound:$("soun
 click:$("click").checked,chime:$("chime").checked,
 cals:($("calCn").checked?1:0)|($("calIs").checked?2:0)|($("calBu").checked?4:0)|($("calHi").checked?8:0)|($("calJu").checked?16:0),
 pmethod:+$("pmethod").value,hanafi:$("hanafi").checked,premind:$("premind").checked,hijriAdj:+$("hijriAdj").value,
-fmin:+$("fmin").value,bmin:+$("bmin").value,motion:$("motion").checked,msens:+$("msens").value,mmirror:$("mmirror").checked,
+fmin:+$("fmin").value,bmin:+$("bmin").value,
+alarms:(alarmRead(),alarms),aon:$("aon").checked,asnooze:+$("asnooze").value,anap:+$("anap").value,astop:+$("astop").value,motion:$("motion").checked,msens:+$("msens").value,mmirror:$("mmirror").checked,
 ntrans:$("ntrans").checked,nstyle:+$("nstyle").value,qmask:[0,1,2,3,4,5,6,7].reduce((m,i)=>m|($("qm"+i).checked?1<<i:0),0)||1,famous:$("famous").value.trim(),gender:+$("gender").value,qai:+$("qai").value,ailimit:+$("ailimit").value,feelmin:+$("feelmin").value,aieffort:+$("aieffort").value};
 if($("pass").value||ssid!==(info.ssid||""))d.pass=$("pass").value;
 if($("pass2").value||ssid2!==(info.ssid2||""))d.pass2=$("pass2").value;

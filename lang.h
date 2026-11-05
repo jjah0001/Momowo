@@ -256,6 +256,31 @@ enum Str : uint16_t {
   S_GM_MS,
   S_GM_TAP_AVG,
   S_GM_TAP_BEST,
+  S_AL_TITLE,
+  S_AL_NONE,
+  S_AL_SET_PHONE,
+  S_AL_ON,
+  S_AL_OFF,
+  S_AL_IN_HM,
+  S_AL_IN_M,
+  S_AL_HOLD_ONOFF,
+  S_AL_HOLD_NAP,
+  S_AL_NAP,
+  S_AL_SNOOZE_T,
+  S_AL_HOLD_CANCEL,
+  S_AL_HOLD_UP,
+  S_AL_NAP_START,
+  S_AL_NAP_CANCEL,
+  S_AL_WAKE,
+  S_AL_NAP_OVER,
+  S_AL_TAP_SNOOZE,
+  S_AL_HOLD_STOP,
+  S_AL_SHAKE_STOP,
+  S_AL_SHAKE_MORE,
+  S_AL_SNOOZED,
+  S_AL_MISSED,
+  S_AL_NAP_DONE,
+  S_AL_TODAY_FC,
   S_COUNT
 };
 
@@ -511,6 +536,31 @@ static const char* const STR[S_COUNT][L_COUNT] = {
   {"%d ms", "%d 毫秒", "%d 毫秒", "%d ms", "%d ms", "%d ms", "%d ミリ秒", "%d ms"},   // GM_MS
   {"Average %d ms", "平均 %d 毫秒", "平均 %d 毫秒", "Rata-rata %d ms", "Schnitt %d ms", "Moyenne %d ms", "平均 %d ミリ秒", "Media %d ms"},   // GM_TAP_AVG
   {"New record: %d ms!", "新纪录：%d 毫秒！", "新紀錄：%d 毫秒！", "Rekor baru: %d ms!", "Rekord: %d ms!", "Record : %d ms !", "新記録：%d ミリ秒！", "Récord: %d ms!"},   // GM_TAP_BEST
+  {"Alarm", "闹钟", "鬧鐘", "Alarm", "Wecker", "Réveil", "アラーム", "Alarma"},   // AL_TITLE
+  {"No alarm set", "还没有闹钟", "還沒有鬧鐘", "Belum ada alarm", "Kein Wecker gestellt", "Aucun réveil", "アラームなし", "Sin alarma"},   // AL_NONE
+  {"Set one on the phone page", "请在手机设置页设定", "請在手機設定頁設定", "Atur di halaman ponsel", "Am Handy einstellen", "Règle-le sur le téléphone", "スマホの設定ページで", "Ponla en el móvil"},   // AL_SET_PHONE
+  {"Alarms on", "闹钟已开", "鬧鐘已開", "Alarm nyala", "Wecker an", "Réveils activés", "アラームオン", "Alarmas activadas"},   // AL_ON
+  {"Alarms off", "闹钟已关", "鬧鐘已關", "Alarm mati", "Wecker aus", "Réveils coupés", "アラームオフ", "Alarmas apagadas"},   // AL_OFF
+  {"%s - in %dh %02dm", "%s  %d小时%02d分后", "%s  %d小時%02d分後", "%s - %dj %02dm lagi", "%s - in %d:%02d h", "%s - dans %dh%02d", "%s  あと%d時間%02d分", "%s - en %dh %02dm"},   // AL_IN_HM
+  {"%s - in %d min", "%s  %d分钟后", "%s  %d分鐘後", "%s - %d mnt lagi", "%s - in %d Min.", "%s - dans %d min", "%s  あと%d分", "%s - en %d min"},   // AL_IN_M
+  {"Hold: alarms on/off", "长按：开关闹钟", "長按：開關鬧鐘", "Tahan: alarm on/off", "Halten: Wecker an/aus", "Appui long : on/off", "長押し：オン/オフ", "Mantén: on/off"},   // AL_HOLD_ONOFF
+  {"Hold 2s: %u min nap", "按住2秒：小睡%u分钟", "按住2秒：小睡%u分鐘", "Tahan 2d: tidur %u mnt", "2s halten: %u Min. Pause", "2 s : sieste %u min", "2秒押し：%u分仮眠", "2 s: siesta %u min"},   // AL_HOLD_NAP
+  {"Nap", "小睡", "小睡", "Tidur siang", "Nickerchen", "Sieste", "仮眠", "Siesta"},   // AL_NAP
+  {"Snooze", "贪睡", "貪睡", "Tunda", "Schlummern", "Rappel", "スヌーズ", "Repetir"},   // AL_SNOOZE_T
+  {"Hold: cancel", "长按：取消", "長按：取消", "Tahan: batal", "Halten: abbrechen", "Appui long : annuler", "長押し：やめる", "Mantén: cancelar"},   // AL_HOLD_CANCEL
+  {"Hold: I'm up!", "长按：我起来了！", "長按：我起來了！", "Tahan: aku bangun!", "Halten: Bin wach!", "Appui long : debout !", "長押し：起きたよ！", "Mantén: ¡ya estoy!"},   // AL_HOLD_UP
+  {"Nap: %u min", "小睡 %u 分钟", "小睡 %u 分鐘", "Tidur %u mnt", "Pause %u Min.", "Sieste %u min", "仮眠 %u分", "Siesta %u min"},   // AL_NAP_START
+  {"Nap cancelled", "已取消小睡", "已取消小睡", "Tidur dibatalkan", "Nickerchen aus", "Sieste annulée", "仮眠をやめた", "Siesta cancelada"},   // AL_NAP_CANCEL
+  {"Time to wake up!", "该起床啦！", "該起床啦！", "Waktunya bangun!", "Aufwachen!", "C'est l'heure !", "起きる時間だよ！", "¡Hora de despertar!"},   // AL_WAKE
+  {"Nap's over!", "小睡结束啦！", "小睡結束啦！", "Tidur siang selesai!", "Pause vorbei!", "Fin de la sieste !", "仮眠おわり！", "¡Fin de la siesta!"},   // AL_NAP_OVER
+  {"Tap: snooze %u min", "轻触：贪睡%u分钟", "輕觸：貪睡%u分鐘", "Ketuk: tunda %u mnt", "Tippen: %u Min. später", "Touche : rappel %u min", "タップ：%u分スヌーズ", "Toca: %u min más"},   // AL_TAP_SNOOZE
+  {"Hold 2 s to stop", "按住2秒关闭", "按住2秒關閉", "Tahan 2 d: berhenti", "2 s halten: aus", "Appui 2 s : arrêter", "2秒押して止める", "Mantén 2 s: parar"},   // AL_HOLD_STOP
+  {"Shake me 3x to stop!", "摇我3下关闭！", "搖我3下關閉！", "Goyang aku 3x!", "3x schütteln: aus!", "Secoue-moi 3 fois !", "3回振って止めて！", "¡Agítame 3 veces!"},   // AL_SHAKE_STOP
+  {"%d more!", "再摇%d下！", "再搖%d下！", "%d lagi!", "Noch %dx!", "Encore %d !", "あと%d回！", "¡%d más!"},   // AL_SHAKE_MORE
+  {"Snooze %u min. Zzz", "贪睡%u分钟 Zzz", "貪睡%u分鐘 Zzz", "Tunda %u mnt Zzz", "%u Min. Zzz", "Rappel %u min Zzz", "%u分スヌーズ Zzz", "%u min más Zzz"},   // AL_SNOOZED
+  {"My alarm rang for %d min, then I let you sleep", "闹钟响了%d分钟，就让你继续睡吧", "鬧鐘響了%d分鐘，就讓你繼續睡吧", "Alarm berbunyi %d menit, lalu kubiarkan kamu tidur", "Der Wecker klingelte %d Min., dann ließ ich dich schlafen", "Le réveil a sonné %d min, puis s'est tu", "アラームは%d分鳴ったよ。そのまま寝かせておいたね", "La alarma sonó %d min y te dejé dormir"},   // AL_MISSED
+  {"Welcome back! Feeling fresher?", "欢迎回来！精神好点了吗？", "歡迎回來！精神好點了嗎？", "Selamat datang kembali! Lebih segar?", "Willkommen zurück! Erholt?", "Re-bonjour ! Ça va mieux ?", "おかえり！すっきりした？", "¡Hola de nuevo! ¿Con más energía?"},   // AL_NAP_DONE
+  {"Today %d/%d° %s", "今天 %d/%d° %s", "今天 %d/%d° %s", "Hari ini %d/%d° %s", "Heute %d/%d° %s", "Aujourd'hui %d/%d° %s", "今日 %d/%d度 %s", "Hoy %d/%d° %s"},   // AL_TODAY_FC
 };
 #define T(s) (STR[(s)][LANG < L_COUNT ? LANG : 0])
 

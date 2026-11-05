@@ -101,6 +101,15 @@ static int WAKE_HOUR  = 7;              // buddy wakes up
 static uint8_t FOCUS_MIN = 25;          // Pomodoro length (minutes), set on the phone page
 static uint8_t BREAK_MIN = 5;           // short break; every 4th break is three times longer
 
+// Wake-up alarm: up to three alarm times (phone page), plus a nap timer on the Alarm page
+#define ALARM_SLOTS 3
+struct AlarmSlot { uint8_t h = 7, m = 0, days = 0x3E, on = 0; };   // days: bit 0 Sunday .. bit 6 Saturday, 0 = once
+static AlarmSlot ALARMS[ALARM_SLOTS];
+static bool    ALARM_ON   = true;       // all alarms on or off (hold on the Alarm page)
+static uint8_t SNOOZE_MIN = 9;          // a tap snoozes this long; 0 = no snooze
+static uint8_t ALARM_STOP = 0;          // stop by: 0 holding the pad 2 s, 1 shaking Momowo 3 times
+static uint8_t NAP_MIN    = 20;         // the nap timer (hold 2 s on the Alarm page)
+
 // Calendars shown beside the Gregorian one (phone page), and what the Islamic one brings
 enum : uint8_t { CAL_CHINESE = 1, CAL_ISLAMIC = 2, CAL_BUDDHIST = 4, CAL_HINDU = 8, CAL_JEWISH = 16, CAL_ALL = 31 };
 static uint8_t CALS = CAL_CHINESE;
@@ -422,7 +431,7 @@ static volatile int32_t gTzSaid = 0;         // the offset the network last repo
 static volatile uint32_t gTzSaidVer = 0;
 
 // ============================ UI STATE ===============================
-enum Page : uint8_t { P_BUDDY, P_CLOCK, P_CAL, P_WEATHER, P_NEWS, P_QUOTE, P_FOCUS, P_COUNT };
+enum Page : uint8_t { P_BUDDY, P_CLOCK, P_CAL, P_WEATHER, P_NEWS, P_QUOTE, P_FOCUS, P_ALARM, P_COUNT };
 enum Lang : uint8_t { L_EN, L_ZHS, L_ZHT, L_ID, L_DE, L_FR, L_JA, L_ES, L_COUNT };   // phone page order
 #include "lang.h"                           // screen labels in all eight languages: T(S_...)
 struct BuddhistDay { uint8_t m, d; Str name; };
@@ -454,6 +463,19 @@ static const char* const THEME_PATH[] = {
   "tianqi/xieyu", "tianqi/xiexue", "tianqi/xieyun", "tianqi/xiefeng",
   "tianqi/taiyang", "tianqi/yueliang", "tianqi/xingxing"};
 static const char* const THEME_TAG[] = {"春", "夏", "秋", "冬", "雨", "雪", "云", "风", "日", "月", "星"};
+// The alarm while it rings, snoozes or times a nap
+enum : uint8_t { AL_IDLE, AL_RING, AL_SNOOZE };
+struct AlarmNote { uint16_t hz; uint8_t steps; };   // steps: eighth notes
+struct AlarmRun {
+  uint8_t state = AL_IDLE;
+  bool nap = false;                         // this ring ends a nap
+  uint8_t h = 0, m = 0;                     // the alarm time it rings for
+  uint8_t snoozes = 0, shakes = 0;
+  uint32_t ringAt = 0;                      // when this round of ringing began
+  uint32_t snoozeUntil = 0, napUntil = 0, napTotal = 0;
+  uint32_t pressSeen = 0;                   // a pad press the alarm already used: its gestures are ignored
+  uint32_t lastMin = 0;                     // the last minute checked (minutes since 1970)
+};
 // NOTE: keep every custom type up here. The Arduino IDE inserts function
 // prototypes above the first function, so types declared later break them.
 
@@ -469,6 +491,9 @@ static uint32_t gToastUntil = 0;
 static char gTicker[160];                  // big enough for a whole AI feeling, in any language
 static uint32_t gTickerStart = 0, gTickerUntil = 0;
 
+static AlarmRun gAlarm;
+static volatile uint8_t  gAlarmLevel = 0;   // for the sound task: 0 quiet, 1-3 how insistently the alarm plays
+static volatile uint16_t gBuzzDuty = 511;   // buzzer PWM duty (the alarm starts softly)
 static FocusState fState = F_IDLE;
 static uint32_t fRemain = 25 * 60000UL, fLastTick = 0, fTotal = 25 * 60000UL;   // fTotal: this phase's length
 static int gSessions = 0, gSessionDay = -1;  // today's focus sessions and their date (year*1000+day),
@@ -539,6 +564,7 @@ static bool gAiForUser = false;            // netTask: this AI request was asked
 static volatile uint8_t gRiddleReq = 0;     // for netTask: 1 make a riddle, 2 judge the guess
 static volatile bool gQuestReq = false;     // for netTask: write a quest story
 static uint32_t gTouchPressAt = 0;          // when the finger last went down on the pad
+static uint32_t gLastTouch = 0;             // the pad was last touched (its bumps are not pats)
 
 // ============================ HELPERS ================================
 static bool nowTm(struct tm& t) {
@@ -3731,7 +3757,7 @@ static volatile uint32_t sndReqId  = 0;
 
 static void buzz(uint16_t hz) {
   if (!BUZZER_PASSIVE) { digitalWrite(BUZZER_PIN, hz ? HIGH : LOW); return; }
-  uint32_t duty = hz ? 511 : 0;             // 10-bit PWM, full strength: the knob (RV1) sets the volume
+  uint32_t duty = hz ? gBuzzDuty : 0;       // 10-bit PWM, full strength (511) but for a soft alarm start: the knob (RV1) sets the volume
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   if (hz) ledcWriteTone(BUZZER_PIN, hz);
   ledcWrite(BUZZER_PIN, duty);
@@ -3755,16 +3781,72 @@ static void buzzerBegin() {
   buzz(0);
 }
 
+// ---- "Momowo Morning", the wake-up tune: an original melody, written for waking well.
+// Sleep research (RMIT, 2020) linked melodic alarms with less grogginess than harsh beeps; its
+// authors suggest a tune you could hum, at a steady beat neither too fast nor too slow. So: C major,
+// a line that climbs like a sunrise, eighth notes at 100-126 beats a minute. It starts soft and low
+// (only the first phrase, long pauses) and grows: the whole tune, then faster, fuller and brighter
+// with an "up you get!" tag. The buzzer's PWM duty makes the early rounds quieter; the knob still
+// sets the loudest level.
+static const AlarmNote TUNE_CALL[] = {     // bars 1-2: up like the sun, then a gentle settle
+  {523, 1}, {659, 1}, {784, 1}, {1047, 2}, {988, 1}, {1047, 1}, {1175, 1},
+  {1319, 3}, {1175, 1}, {1047, 1}, {880, 1}, {784, 2}};
+static const AlarmNote TUNE_ANSWER[] = {   // bars 3-4: lifts to the fourth and lands bright on top
+  {880, 1}, {1047, 1}, {1397, 2}, {1319, 1}, {1175, 1}, {1047, 1}, {1175, 1},
+  {1319, 1}, {1568, 1}, {1319, 1}, {1568, 1}, {2093, 4}};
+static const AlarmNote TUNE_TAG[] = {      // level 3 only: up you get!
+  {1568, 1}, {2093, 1}, {1568, 1}, {2093, 1}, {2637, 3}};
+#define TUNE_LEN(a) (uint8_t)(sizeof(a) / sizeof((a)[0]))
+static const uint32_t ALARM_L2_MS = 40000, ALARM_L3_MS = 90000;   // when the tune grows
+
+static bool alarmWait(uint32_t ms) {        // false: the alarm was stopped meanwhile
+  while (ms) {
+    uint32_t d = ms > 10 ? 10 : ms;
+    vTaskDelay(pdMS_TO_TICKS(d));
+    ms -= d;
+    if (!gAlarmLevel) return false;
+  }
+  return true;
+}
+
+static bool alarmPart(const AlarmNote* p, uint8_t n, uint16_t stepMs) {
+  for (uint8_t i = 0; i < n; i++) {
+    uint32_t ms = (uint32_t)p[i].steps * stepMs, gap = p[i].steps > 1 ? 40 : 24;   // detached, bouncy notes
+    buzz(p[i].hz);
+    bool ok = alarmWait(ms - gap);
+    buzz(0);
+    if (!ok || !alarmWait(gap)) return false;
+  }
+  return true;
+}
+
+static void alarmPhrase() {                 // one round of the tune, at the current level
+  static const uint16_t STEP[] = {0, 300, 268, 238};   // ms per eighth note: 100, 112, 126 beats a minute
+  static const uint16_t DUTY[] = {0, 50, 170, 511};    // soft, medium, full
+  static const uint16_t REST[] = {0, 2600, 1200, 450}; // pause before the next round
+  uint8_t lv = gAlarmLevel;
+  if (lv < 1 || lv > 3) return;
+  gBuzzDuty = DUTY[lv];
+  bool ok = alarmPart(TUNE_CALL, TUNE_LEN(TUNE_CALL), STEP[lv]);
+  if (ok && lv >= 2) ok = alarmPart(TUNE_ANSWER, TUNE_LEN(TUNE_ANSWER), STEP[lv]);
+  if (ok && lv >= 3) ok = alarmPart(TUNE_TAG, TUNE_LEN(TUNE_TAG), STEP[lv]);
+  buzz(0);
+  if (ok) alarmWait(REST[lv]);
+  buzz(0);
+  gBuzzDuty = 511;
+}
+
 // Plays notes with precise timing, independent of the ~25 ms display frames.
-// A new request interrupts the current sound.
+// A new request interrupts the current sound. A ringing alarm comes first.
 static void soundTask(void*) {
   uint32_t seen = 0;
   for (;;) {
+    if (gAlarmLevel) { alarmPhrase(); continue; }   // other sounds are not asked for while it rings
     if (sndReqId == seen) { vTaskDelay(pdMS_TO_TICKS(5)); continue; }
     seen = sndReqId;
     const Note* notes = sndReq;
     uint8_t n = sndReqLen;
-    for (uint8_t i = 0; i < n && sndReqId == seen; i++) {
+    for (uint8_t i = 0; i < n && sndReqId == seen && !gAlarmLevel; i++) {
       uint16_t ms = notes[i].ms, on = ms > 30 ? ms - 12 : ms;   // short gap articulates notes
       buzz(notes[i].hz);
       vTaskDelay(pdMS_TO_TICKS(on));
@@ -3778,7 +3860,13 @@ static void soundTask(void*) {
 static void playSound(const Note* notes, uint8_t n) {
   // Silent when muted, all through sleep hours (do not disturb, even after a touch), and while a
   // focus session runs. The session's completion sound still plays: the state is already idle then.
-  if (gMuted || gNight || fState == F_RUN) return;
+  if (gMuted || gNight || fState == F_RUN || gAlarmLevel) return;
+  sndReq = notes;
+  sndReqLen = n;
+  sndReqId = sndReqId + 1;
+}
+
+static void playAlways(const Note* notes, uint8_t n) {   // the alarm's own sounds: they play even when muted or at night
   sndReq = notes;
   sndReqLen = n;
   sndReqId = sndReqId + 1;
@@ -3806,7 +3894,7 @@ static void setMood(Mood m, uint32_t ms) {
 
 static Mood currentMood(uint32_t now, bool sleeping) {
   if (notYet(now, B.ovUntil)) return B.ov;
-  if (sleeping) return M_SLEEPY;
+  if (sleeping || gAlarm.napUntil || gAlarm.state == AL_SNOOZE) return M_SLEEPY;
   if (!gWifiUp && !gPlannedHop && (WIFI_SSID[0] || WIFI2_SSID[0]) && now > 30000) return M_SAD;   // only if WiFi was set up
   const int aqi = getWeather().aqi;         // bad air weighs on Momowo: tired eyes, then sad ones
   if ((int32_t)(now - B.nextAntic) >= 0) {                 // little random expressions
@@ -5308,6 +5396,349 @@ static void drawFocusPage(uint32_t now) {
                             : T(S_HOLD_RESUME), 56, 1, 0);
 }
 
+// ============================ WAKE-UP ALARM ==========================
+// Up to three alarm times from the phone page, each on chosen weekdays (or once). It rings with
+// "Momowo Morning", soft at first and growing. A tap (or a bump on the case) snoozes; holding the pad
+// for 2 s, or shaking Momowo 3 times if the owner chose that, stops it. It rings even when sounds
+// are off, at night and during a focus session. On the Alarm page a hold turns all alarms on or
+// off, and a 2 s hold starts (or cancels) a nap timer that wakes the same way.
+static const uint32_t ALARM_HOLD_MS = 2000;            // hold this long to stop it
+static const uint32_t ALARM_RING_MAX = 10UL * 60000;   // a round of ringing nobody answers ends here
+static const uint8_t  ALARM_SHAKES = 3;
+static const uint8_t  ALARM_AUTO_SNOOZES = 3;          // unanswered rounds, before it gives up
+static const Note SND_ALARM_UP[] = {{1047, 80}, {1319, 80}, {1568, 80}, {2093, 200}};   // stopped: hello!
+static const Note SND_SNOOZE[]   = {{1568, 120}, {1175, 120}, {784, 220}};             // drifting off again
+
+static bool alarmByShake() { return ALARM_STOP == 1 && gMotion; }
+
+static void alarmSave() {
+  prefs.putBytes("alarms", ALARMS, sizeof(ALARMS));
+}
+
+// Minutes from now until a slot rings next, and on which day from today (-1: never)
+static int alarmMinutes(const AlarmSlot& a, const struct tm& t, int& dayOff) {
+  int nowMin = t.tm_hour * 60 + t.tm_min, at = a.h * 60 + a.m;
+  for (int d = 0; d <= 7; d++) {
+    int wd = (t.tm_wday + d) % 7;
+    bool day = a.days ? (a.days >> wd) & 1 : true;
+    int mins = d * 1440 + at - nowMin;
+    if (day && mins > 0) { dayOff = d; return mins; }
+  }
+  return -1;
+}
+
+// The next alarm that is set (even while all are switched off, to show it)
+static int nextAlarm(const struct tm& t, int& slot, int& dayOff) {
+  int best = -1;
+  slot = -1;
+  for (int i = 0; i < ALARM_SLOTS; i++) {
+    if (!ALARMS[i].on) continue;
+    int d, m = alarmMinutes(ALARMS[i], t, d);
+    if (m >= 0 && (best < 0 || m < best)) { best = m; slot = i; dayOff = d; }
+  }
+  return best;
+}
+
+static void alarmRing(uint32_t now, bool nap) {
+  gAlarm.state = AL_RING;
+  gAlarm.nap = nap;
+  gAlarm.ringAt = now;
+  gAlarm.shakes = 0;
+  gAlarm.pressSeen = gTouchPressAt;         // a finger already on the pad doesn't count
+  gAlarmLevel = 1;
+  gLastInteraction = now;
+  gNightAwakeUntil = now + 60000;
+  setMood(M_SURPRISED, 1500);
+  Serial.printf("[alarm] ringing (%s)\n", nap ? "nap" : "alarm");
+}
+
+static void alarmSnooze(uint32_t now) {
+  if (!SNOOZE_MIN) { toastFor(alarmByShake() ? T(S_AL_SHAKE_STOP) : T(S_AL_HOLD_STOP), 2500); return; }
+  gAlarm.state = AL_SNOOZE;
+  gAlarm.snoozeUntil = (now + SNOOZE_MIN * 60000UL) | 1;
+  gAlarm.snoozes++;
+  gAlarmLevel = 0;
+  char m[40];
+  snprintf(m, sizeof(m), T(S_AL_SNOOZED), (unsigned)SNOOZE_MIN);
+  toastFor(m, 3000);
+  setMood(M_SLEEPY, 3000);
+  playAlways(SND_SNOOZE, sizeof(SND_SNOOZE) / sizeof(SND_SNOOZE[0]));
+}
+
+// Stopped. By the owner: a happy hello and what the day looks like. By itself: a note about it.
+static void alarmStop(uint32_t now, bool byOwner) {
+  bool nap = gAlarm.nap;
+  gAlarm.state = AL_IDLE;
+  gAlarm.snoozeUntil = 0;
+  gAlarm.nap = false;
+  gAlarmLevel = 0;
+  gLastInteraction = now;
+  gNightAwakeUntil = now + 15UL * 60000;    // stay awake with the owner for a while
+  gPage = P_BUDDY;
+  gPageEnter = now;
+  char msg[sizeof(gTicker)];
+  if (!byOwner) {
+    snprintf(msg, sizeof(msg), T(S_AL_MISSED), (int)(ALARM_RING_MAX / 60000 * (gAlarm.snoozes + 1)));
+    gAlarm.snoozes = 0;
+    setMood(M_SAD, 3000);
+    announce(msg, 30000);
+    return;
+  }
+  gAlarm.snoozes = 0;
+  setMood(M_HAPPY, 4000);
+  B.heartsAt = now;
+  if (nap) strlcpy(msg, T(S_AL_NAP_DONE), sizeof(msg));
+  else {
+    struct tm t;
+    if (nowTm(t)) greetingLine(t.tm_hour, msg, sizeof(msg)); else strlcpy(msg, T(S_AL_WAKE), sizeof(msg));
+    WeatherData w = getWeather();
+    if (w.valid) {                          // the day ahead, while Momowo has the owner's attention
+      size_t L = strlen(msg);
+      snprintf(msg + L, sizeof(msg) - L, "  ");
+      L = strlen(msg);
+      snprintf(msg + L, sizeof(msg) - L, T(S_AL_TODAY_FC), (int)lroundf(w.tmax), (int)lroundf(w.tmin), condLabel(w.code));
+      if (w.rainChance >= 50) {
+        L = strlen(msg);
+        snprintf(msg + L, sizeof(msg) - L, "  ");
+        L = strlen(msg);
+        snprintf(msg + L, sizeof(msg) - L, T(S_RAIN_ADVICE), w.rainChance);
+      }
+    }
+  }
+  announce(msg, 20000);
+  playAlways(SND_ALARM_UP, sizeof(SND_ALARM_UP) / sizeof(SND_ALARM_UP[0]));
+}
+
+static void napToggle(uint32_t now) {       // 2 s hold on the Alarm page
+  char m[40];
+  if (gAlarm.napUntil) {
+    gAlarm.napUntil = 0;
+    toast(T(S_AL_NAP_CANCEL));
+    return;
+  }
+  gAlarm.napTotal = NAP_MIN * 60000UL;
+  gAlarm.napUntil = (now + gAlarm.napTotal) | 1;
+  snprintf(m, sizeof(m), T(S_AL_NAP_START), (unsigned)NAP_MIN);
+  toastFor(m, 2500);
+  setMood(M_SLEEPY, 2500);
+  PLAY(SND_PAUSE);
+}
+
+static void alarmHold(uint32_t now) {       // hold on the Alarm page
+  if (gAlarm.state == AL_SNOOZE) { alarmStop(now, true); return; }   // "I'm up!"
+  if (gAlarm.napUntil) { napToggle(now); return; }                   // cancel the nap
+  ALARM_ON = !ALARM_ON;
+  prefs.putBool("aon", ALARM_ON);
+  toast(ALARM_ON ? T(S_AL_ON) : T(S_AL_OFF));
+  PLAY(ALARM_ON ? SND_ON : SND_PAUSE);
+}
+
+// A gesture on the pad while it rings. Returns true if the alarm took it.
+static bool alarmGesture(Gesture g, uint32_t now) {
+  if (gAlarm.state != AL_RING) return false;
+  if (gTouchPressAt == gAlarm.pressSeen) return true;   // the press that already did something
+  gAlarm.pressSeen = gTouchPressAt;
+  if (g == G_TAP || g == G_DOUBLE) alarmSnooze(now);
+  else if (g == G_LONG && !alarmByShake()) alarmSnooze(now);   // let go before 2 s: a snooze
+  else if (alarmByShake()) toastFor(T(S_AL_SHAKE_STOP), 2500);
+  return true;
+}
+
+// Motion while it rings: shakes stop it (if chosen); otherwise a bump or a shake snoozes it
+static void alarmMotion(motion::Event ev, uint32_t now) {
+  if (alarmByShake()) {
+    if (ev != motion::EV_SHAKE) return;
+    if (++gAlarm.shakes >= ALARM_SHAKES) { alarmStop(now, true); return; }
+    char m[32];
+    snprintf(m, sizeof(m), T(S_AL_SHAKE_MORE), ALARM_SHAKES - gAlarm.shakes);
+    toastFor(m, 1500);
+    return;
+  }
+  if (!MOTION_ON) return;                   // motion gestures switched off on the phone page
+  if (ev == motion::EV_PAT && now - gLastTouch < 1500) return;   // the pad's own bump: the touch counts
+  if (ev == motion::EV_PAT || ev == motion::EV_SHAKE) alarmSnooze(now);
+}
+
+// Is an alarm due in this local minute? (its slot, or -1)
+static int alarmDue(const struct tm& lt) {
+  if (!ALARM_ON) return -1;
+  for (int i = 0; i < ALARM_SLOTS; i++) {
+    const AlarmSlot& a = ALARMS[i];
+    if (!a.on || a.h != lt.tm_hour || a.m != lt.tm_min) continue;
+    if (a.days && !((a.days >> lt.tm_wday) & 1)) continue;
+    return i;
+  }
+  return -1;
+}
+
+static void alarmTick(uint32_t now) {
+  if (gAlarm.napUntil && !notYet(now, gAlarm.napUntil)) {   // nap over
+    gAlarm.napUntil = 0;
+    gAlarm.snoozes = 0;
+    if (gAlarm.state != AL_RING) alarmRing(now, true);
+  }
+  if (gAlarm.state == AL_SNOOZE && !notYet(now, gAlarm.snoozeUntil)) {   // snooze over: it comes back
+    gAlarm.snoozeUntil = 0;
+    alarmRing(now, gAlarm.nap);
+    gAlarm.ringAt = now - ALARM_L2_MS;      // straight to the whole tune
+    gAlarmLevel = 2;
+  }
+  static uint32_t lastCheck = 0;            // alarm times: every minute that passed (also after a
+  if (now - lastCheck >= 1000) {            // small clock jump), each once
+    lastCheck = now;
+    time_t tn = time(nullptr);
+    if (tn > 1700000000) {
+      uint32_t cur = (uint32_t)(tn / 60);
+      if (!gAlarm.lastMin || cur < gAlarm.lastMin || cur - gAlarm.lastMin > 5) gAlarm.lastMin = cur - 1;
+      while (gAlarm.lastMin < cur) {
+        gAlarm.lastMin++;
+        time_t mt = (time_t)gAlarm.lastMin * 60;
+        struct tm lt;
+        localtime_r(&mt, &lt);
+        int i = alarmDue(lt);
+        if (i < 0) continue;
+        if (!ALARMS[i].days) { ALARMS[i].on = 0; alarmSave(); }   // a one-time alarm: done
+        gAlarm.h = ALARMS[i].h;
+        gAlarm.m = ALARMS[i].m;
+        gAlarm.snoozes = 0;
+        gAlarm.snoozeUntil = 0;
+        alarmRing(now, false);
+      }
+    }
+  }
+  if (gAlarm.state != AL_RING) return;
+  uint32_t el = now - gAlarm.ringAt;
+  uint8_t lv = el < ALARM_L2_MS ? 1 : el < ALARM_L3_MS ? 2 : 3;
+  if (gAlarmLevel != lv) gAlarmLevel = lv;
+  gLastInteraction = now;
+  gNightAwakeUntil = now + 60000;
+  if (!alarmByShake() && digitalRead(TOUCH_PIN) == HIGH && gTouchPressAt != gAlarm.pressSeen &&
+      now - gTouchPressAt >= ALARM_HOLD_MS) {   // held long enough: stop, without waiting for the lift
+    gAlarm.pressSeen = gTouchPressAt;
+    alarmStop(now, true);
+    return;
+  }
+  if (el > ALARM_RING_MAX) {                // nobody answered: snooze a few times, then give up
+    if (SNOOZE_MIN && gAlarm.snoozes < ALARM_AUTO_SNOOZES) alarmSnooze(now);
+    else alarmStop(now, false);
+  }
+}
+
+// The big time, centred, with am/pm beside it on a 12-hour clock
+static void bigTime(int h, int m, int y) {
+  char hm[8];
+  if (USE_24H) snprintf(hm, sizeof(hm), "%02d:%02d", h, m);
+  else snprintf(hm, sizeof(hm), "%d:%02d", h % 12 ? h % 12 : 12, m);
+  int len = strlen(hm);
+  const char* ap = h < 12 ? T(S_AM) : T(S_PM);
+  int sfx = USE_24H ? 0 : 2 + textWidthPx(ap);
+  int x = (SCREEN_W - (len * 18 + sfx)) / 2;
+  display.setTextSize(3);
+  display.setCursor(x, y);
+  display.print(hm);
+  display.setTextSize(1);
+  if (!USE_24H) textAt(ap, x + len * 18 + 2, y + (langIsCjk() ? 6 : 0));
+}
+
+static void bigCountdown(uint32_t ms, int y) {
+  uint32_t s = (ms + 999) / 1000;
+  char buf[12];
+  if (s >= 3600) snprintf(buf, sizeof(buf), "%u:%02u", (unsigned)(s / 3600), (unsigned)(s / 60 % 60));
+  else snprintf(buf, sizeof(buf), "%02u:%02u", (unsigned)(s / 60), (unsigned)(s % 60));
+  display.setTextSize(3);
+  display.setCursor((SCREEN_W - strlen(buf) * 18) / 2 + 2, y);
+  display.print(buf);
+  display.setTextSize(1);
+}
+
+// While it rings: the time, bouncing a little, and how to snooze or stop it
+static void drawAlarmRing(uint32_t now) {
+  const bool tall = langIsCjk();
+  uint32_t el = now - gAlarm.ringAt;
+  textLine(gAlarm.nap ? T(S_AL_NAP_OVER) : T(S_AL_WAKE), 0, 1, el);
+  int bob = gAlarmLevel >= 2 && (now / 240) % 2 ? -2 : 0;   // the numbers hop along with the tune
+  struct tm t;
+  if (nowTm(t)) bigTime(t.tm_hour, t.tm_min, (tall ? 17 : 13) + bob);
+  else bigCountdown(0, (tall ? 17 : 13) + bob);
+  if (alarmByShake()) {                     // shakes so far
+    for (int i = 0; i < ALARM_SHAKES; i++) {
+      int cx = 64 + (i - 1) * 14;
+      if (i < gAlarm.shakes) display.fillCircle(cx, 45, 4, SH110X_WHITE);
+      else display.drawCircle(cx, 45, 4, SH110X_WHITE);
+    }
+  } else {                                  // hold: the bar fills up to "stopped"
+    display.drawRoundRect(14, 42, 100, 7, 3, SH110X_WHITE);
+    bool held = digitalRead(TOUCH_PIN) == HIGH && gTouchPressAt != gAlarm.pressSeen;
+    uint32_t h = held ? min<uint32_t>(now - gTouchPressAt, ALARM_HOLD_MS) : 0;
+    if (h) display.fillRect(16, 44, 96 * h / ALARM_HOLD_MS, 3, SH110X_WHITE);
+  }
+  char hint[48];
+  bool snoozeTurn = SNOOZE_MIN && (el / 2500) % 2 == 0;
+  if (snoozeTurn) snprintf(hint, sizeof(hint), T(S_AL_TAP_SNOOZE), (unsigned)SNOOZE_MIN);
+  else strlcpy(hint, alarmByShake() ? T(S_AL_SHAKE_STOP) : T(S_AL_HOLD_STOP), sizeof(hint));
+  textLine(hint, 56, 1, (el % 2500));
+}
+
+// The Alarm page: the next alarm and when, or the nap / snooze countdown
+static void drawAlarmPage(uint32_t now) {
+  const bool tall = langIsCjk();
+  const uint32_t el = now - gPageEnter;
+  char buf[64];
+  if (gAlarm.state == AL_SNOOZE || gAlarm.napUntil) {
+    const bool snooze = gAlarm.state == AL_SNOOZE;
+    uint32_t until = snooze ? gAlarm.snoozeUntil : gAlarm.napUntil;
+    uint32_t left = notYet(now, until) ? until - now : 0;
+    bigCountdown(left, tall ? 19 : 14);
+    if (!snooze && gAlarm.napTotal) {       // how much of the nap is done
+      display.drawRoundRect(4, 42, 120, 7, 3, SH110X_WHITE);
+      uint32_t done = gAlarm.napTotal > left ? gAlarm.napTotal - left : 0;
+      display.fillRect(6, 44, (uint32_t)(116ULL * done / gAlarm.napTotal), 3, SH110X_WHITE);
+    } else if (!tall) {                     // little z's drifting up (no room under taller CJK text)
+      for (int i = 0; i < 3; i++) {
+        int ph = (now / 120 + i * 9) % 27;
+        display.setCursor(48 + i * 14, 46 - ph / 3);
+        display.print('z');
+      }
+    }
+    textLine(snooze ? T(S_AL_HOLD_UP) : T(S_AL_HOLD_CANCEL), 56, 1, el);
+    pageHeader(snooze ? T(S_AL_SNOOZE_T) : T(S_AL_NAP), nullptr);
+    return;
+  }
+  struct tm t;
+  if (!nowTm(t)) { drawNoTime(); return; }
+  int slot, dayOff = 0;
+  int mins = nextAlarm(t, slot, dayOff);
+  const int top = bodyTop();
+  bool infoTurn = false;                    // taller CJK lines: the "when" line and the hints take turns
+  buf[0] = 0;
+  if (mins < 0) {
+    textLine(T(S_AL_NONE), top + (tall ? 2 : 8), 1, el);
+    textLine(T(S_AL_SET_PHONE), top + (tall ? 18 : 22), 1, el);
+  } else {
+    const AlarmSlot& a = ALARMS[slot];
+    bigTime(a.h, a.m, tall ? 19 : 14);
+    if (!ALARM_ON) {                        // switched off: cross it out
+      display.drawLine(10, (tall ? 19 : 14) + 10, 118, (tall ? 19 : 14) + 10, SH110X_BLACK);
+      display.drawLine(10, (tall ? 19 : 14) + 11, 118, (tall ? 19 : 14) + 11, SH110X_WHITE);
+      strlcpy(buf, T(S_AL_OFF), sizeof(buf));
+    } else {
+      int wd = (t.tm_wday + dayOff) % 7;
+      const char* day = dayOff == 0 ? T(S_TODAY) : dayOff == 1 ? T(S_TOMORROW) : WD_SHORT[LANG][wd];
+      if (mins < 60) snprintf(buf, sizeof(buf), T(S_AL_IN_M), day, mins);
+      else snprintf(buf, sizeof(buf), T(S_AL_IN_HM), day, mins / 60, mins % 60);
+    }
+    if (!tall) textLine(buf, 40, 1, el);
+    else infoTurn = (el % 9000) < 4000;
+  }
+  char hint[64];
+  uint32_t turn = tall && mins >= 0 ? (el % 9000 < 4000 ? 0 : el % 9000 < 6500 ? 1 : 2) : 1 + (el / 3000) % 2;
+  if (infoTurn) strlcpy(hint, buf, sizeof(hint));
+  else if (turn == 2) snprintf(hint, sizeof(hint), T(S_AL_HOLD_NAP), (unsigned)NAP_MIN);
+  else strlcpy(hint, T(S_AL_HOLD_ONOFF), sizeof(hint));
+  textLine(hint, 56, 1, tall ? el % 9000 : el % 3000);
+  pageHeader(T(S_AL_TITLE), nullptr);
+}
+
 // ============================ PHONE SETUP =============================
 // The setup page, served by Momowo itself (no app to install)
 #include "portal.h"                         // PORTAL_HTML: the phone setup page
@@ -5379,6 +5810,12 @@ static void loadSettings() {
   loadHolidays();
   MOTION_SENS   = constrain(prefs.getUChar("msens", MOTION_SENS), 1, 3);
   MOTION_MIRROR = prefs.getBool("mmirror", MOTION_MIRROR);
+  if (prefs.isKey("alarms") && prefs.getBytesLength("alarms") == sizeof(ALARMS)) prefs.getBytes("alarms", ALARMS, sizeof(ALARMS));
+  for (auto& a : ALARMS) { a.h %= 24; a.m %= 60; a.days &= 0x7F; a.on = a.on ? 1 : 0; }
+  ALARM_ON      = prefs.getBool("aon", ALARM_ON);
+  SNOOZE_MIN    = min<int>(prefs.getUChar("asnooze", SNOOZE_MIN), 30);
+  ALARM_STOP    = prefs.getUChar("astop", ALARM_STOP) & 1;
+  NAP_MIN       = constrain(prefs.getUChar("anap", NAP_MIN), 5, 120);
   fRemain = fTotal = focusMs();
 }
 
@@ -5425,6 +5862,11 @@ static void handleInfo() {
   d["ntrans"] = NEWS_TRANSLATE; d["nstyle"] = NEWS_STYLE;
   d["fmin"] = FOCUS_MIN;      d["bmin"] = BREAK_MIN;
   d["motion"] = MOTION_ON;    d["msens"] = MOTION_SENS;   d["mmirror"] = MOTION_MIRROR;
+  for (int i = 0; i < ALARM_SLOTS; i++) {   // alarms: [hour, minute, weekdays (bit 0 Sunday), on]
+    JsonArray a = d["alarms"].add<JsonArray>();
+    a.add(ALARMS[i].h); a.add(ALARMS[i].m); a.add(ALARMS[i].days); a.add(ALARMS[i].on);
+  }
+  d["aon"] = ALARM_ON;        d["asnooze"] = SNOOZE_MIN;  d["astop"] = ALARM_STOP;  d["anap"] = NAP_MIN;
   d["mpu"] = gMotion;         // is a motion sensor fitted?
   if (!gMotion) {                           // not found: what the I2C bus holds instead
     char found[64], who[24];
@@ -5559,6 +6001,23 @@ static void handleSave() {
   if (d["motion"].is<bool>())  prefs.putBool("motion", d["motion"].as<bool>());
   if (d["msens"].is<int>())    prefs.putUChar("msens", constrain(d["msens"].as<int>(), 1, 3));
   if (d["mmirror"].is<bool>()) prefs.putBool("mmirror", d["mmirror"].as<bool>());
+  if (d["alarms"].is<JsonArray>()) {
+    AlarmSlot al[ALARM_SLOTS];
+    int i = 0;
+    for (JsonArray a : d["alarms"].as<JsonArray>()) {
+      if (i >= ALARM_SLOTS) break;
+      al[i].h = constrain(a[0] | 7, 0, 23);
+      al[i].m = constrain(a[1] | 0, 0, 59);
+      al[i].days = (a[2] | 0) & 0x7F;
+      al[i].on = (a[3] | 0) ? 1 : 0;
+      i++;
+    }
+    prefs.putBytes("alarms", al, sizeof(al));
+  }
+  if (d["aon"].is<bool>())     prefs.putBool("aon", d["aon"].as<bool>());
+  if (d["asnooze"].is<int>())  prefs.putUChar("asnooze", constrain(d["asnooze"].as<int>(), 0, 30));
+  if (d["astop"].is<int>())    prefs.putUChar("astop", constrain(d["astop"].as<int>(), 0, 1));
+  if (d["anap"].is<int>())     prefs.putUChar("anap", constrain(d["anap"].as<int>(), 5, 120));
   server.send(200, "application/json", "{\"ok\":true}");
   gRestartAt = millis() + 1500;             // restart with the new settings
 }
@@ -5733,6 +6192,7 @@ static void handleGesture(Gesture g, uint32_t now) {
   bool wasOff = !gDisplayOn;
   gLastInteraction = now;
   if (gNight) gNightAwakeUntil = now + 20000;
+  if (alarmGesture(g, now)) return;         // a ringing alarm takes every touch
   if (wasOff) { setMood(M_SURPRISED, 900); return; }   // first touch just wakes
   if ((g == G_HINT || g == G_SETUP) && gameActive(now) &&   // a long grip while tilting or shaking
       ((gGame.game == GM_ROLL && gGame.rolling) ||
@@ -5801,12 +6261,14 @@ static void handleGesture(Gesture g, uint32_t now) {
         case P_NEWS:    gReqNews = true; toast(T(S_UPDATING_NEWS)); break;
         case P_QUOTE:   gReqQuote = true; toast(T(S_NEW_QUOTE)); break;
         case P_FOCUS:   focusToggle(now); break;
+        case P_ALARM:   alarmHold(now); break;
         default: break;
       }
       break;
     case G_VLONG:                           // 2-6 s hold: resets focus; elsewhere it's a hold
       if (gPage == P_FOCUS && fState == F_IDLE) breatheStart(now);   // idle: breathe with me
       else if (gPage == P_FOCUS) focusReset();
+      else if (gPage == P_ALARM && gAlarm.state != AL_SNOOZE) napToggle(now);   // 2 s hold: nap timer
       else handleGesture(G_LONG, now);      // sound is set on the phone page now, not the pad
       break;
     default: break;
@@ -5814,7 +6276,6 @@ static void handleGesture(Gesture g, uint32_t now) {
 }
 
 // ============================ MOTION =================================
-static uint32_t gLastTouch = 0;
 
 static void handleMotion(motion::Event ev, uint32_t now) {
   if (ev == motion::EV_PAT && now - gLastTouch < 1500) return;   // the touch pad already counted it
@@ -7111,7 +7572,8 @@ static void drawQuest(uint32_t now, Mood m, const char* say) {
 // ============================ RENDER =================================
 static void render(uint32_t now, bool sleeping) {
   display.clearDisplay();
-  if (gameActive(now)) drawGame(now);
+  if (gAlarm.state == AL_RING) drawAlarmRing(now);
+  else if (gameActive(now)) drawGame(now);
   else if (gSetupMode) drawSetupScreen(now);
   else switch (gPage) {
     case P_BUDDY: {
@@ -7127,11 +7589,13 @@ static void render(uint32_t now, bool sleeping) {
     case P_NEWS:    drawNewsPage(now);    break;
     case P_QUOTE:   drawQuotePage(now);   break;
     case P_FOCUS:   drawFocusPage(now);   break;
+    case P_ALARM:   drawAlarmPage(now);   break;
     default: break;
   }
   if (notYet(now, gToastUntil)) drawToast();
 
   bool inv = notYet(now, gFlashUntil) && ((gFlashUntil - now) / 200) % 2;
+  if (gAlarm.state == AL_RING && gAlarmLevel >= 3) inv = (now / 476) % 4 == 0;   // the loudest round flashes on the beat
   if (inv != gInverted) { gInverted = inv; display.invertDisplay(inv); }
   display.display();
 }
@@ -7329,7 +7793,7 @@ void loop() {
     gRestartAt = now;
   }
   if (!gRestartAt && gRestartSoon && (!gDisplayOn || (now - gLastInteraction > 30UL * 60 * 1000 &&
-      fState == F_IDLE && !gameActive(now) && !gSetupMode))) {
+      fState == F_IDLE && !gameActive(now) && !gSetupMode)) && gAlarm.state == AL_IDLE && !gAlarm.napUntil) {
     Serial.println("[mem] fragmented: restarting while nobody's looking");
     gRestartAt = now;
   }
@@ -7392,6 +7856,7 @@ void loop() {
 
   Gesture g = readGesture(now);
   if (g != G_NONE) { gLastTouch = now; handleGesture(g, now); }
+  alarmTick(now);                           // after the touch: it watches the pad being held
 
   static uint32_t lastMotion = 0;           // MPU6050: about 50 readings a second
   static uint32_t lastMpuTry = 0;           // not found at boot: keep looking (a loose wire)
@@ -7407,7 +7872,8 @@ void loop() {
     float a[3], gy[3];
     if (motion::mpuRead(a, gy)) {
       motion::Event ev = motion::update(gMs, a, gy, now, MOTION_SENS);
-      if (questOn) { if (ev == motion::EV_SHAKE) questInput(QA_SHAKE, now); }
+      if (gAlarm.state == AL_RING) { if (ev != motion::EV_NONE) alarmMotion(ev, now); }
+      else if (questOn) { if (ev == motion::EV_SHAKE) questInput(QA_SHAKE, now); }
       else if (ev != motion::EV_NONE && MOTION_ON && !gSetupMode && !rollOn) handleMotion(ev, now);
     }
   }
@@ -7416,8 +7882,9 @@ void loop() {
 
   static uint32_t lastSweep = 0;
   if (now - lastSweep >= 1000) { lastSweep = now; sweepTimers(now); }
-  bool sleeping = gNight && !notYet(now, gNightAwakeUntil) && fState != F_RUN && fState != F_BREATHE && !gSetupMode;
-  const bool idle = !sleeping && !gSetupMode && fState == F_IDLE && !gameActive(now) &&
+  bool sleeping = gNight && !notYet(now, gNightAwakeUntil) && fState != F_RUN && fState != F_BREATHE && !gSetupMode &&
+                  gAlarm.state != AL_RING;
+  const bool idle = !sleeping && !gSetupMode && fState == F_IDLE && !gameActive(now) && gAlarm.state != AL_RING &&
                     now - gLastInteraction > 20UL * 60 * 1000;
   static uint8_t contrast = CONTRAST_DAY;
   const uint8_t wantContrast = gSetupMode ? CONTRAST_QR : sleeping ? CONTRAST_NIGHT : idle ? CONTRAST_IDLE : CONTRAST_DAY;

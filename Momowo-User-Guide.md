@@ -8,7 +8,7 @@ This guide is for using a finished Momowo. To build one yourself, see the **Momo
 
 <a id="english"></a>
 
-Momowo ("pat me") is a little desk friend that helps you relax. Its eyes come alive when you pat it, and it keeps you company through the day. It shows the time, your calendars and festivals, prayer times, the weather and air quality, the news read by a character you pick, and a quote for the moment. It also has a focus timer with a breathing exercise, and you can play games with it from your phone.
+Momowo ("pat me") is a little desk friend that helps you relax. Its eyes come alive when you pat it, and it keeps you company through the day. It shows the time, your calendars and festivals, prayer times, the weather and air quality, the news read by a character you pick, and a quote for the moment. It also has a focus timer with a breathing exercise, a wake-up alarm and nap timer with its own gentle melody, and you can play games with it from your phone.
 
 Momowo speaks English, Simplified Chinese, Traditional Chinese, Indonesian, German, French, Japanese and Spanish.
 
@@ -63,6 +63,7 @@ The setup screen closes by itself after 10 minutes if no phone is connected. To 
 | Clock & bedtime | 12 or 24 hour time, and when you go to sleep and wake up. At night Momowo dims its screen and stays quiet. |
 | Calendars | The normal calendar is always on. You can add any of these: Chinese lunar, Islamic (Hijri), Buddhist, Hindu and Jewish (Hebrew). If you turn on the Islamic calendar, you can also choose how prayer times are calculated, a later Asr time (Hanafi), a chime at each prayer, and a one-day adjustment to match your local moon sighting. |
 | Focus timer | How long you focus (15 to 90 minutes) and how long your breaks are (3 to 20 minutes). |
+| Wake-up alarm | Up to three alarm times. Tick each one you want, and pick its days (no days picked: it rings once). Also: the snooze length (5 to 15 minutes, or no snooze), the nap timer length, and how you stop the alarm: hold Momowo's head for 2 seconds, or shake Momowo 3 times. |
 | Motion | Turn Momowo's reactions to movement on or off, and choose how sensitive it is. If its eyes look the wrong way when you tilt it, tick *My eyes look the wrong way when tilted*. |
 | Sounds | Sound on or off, a click when you touch it, and a beep on the hour. To make Momowo louder or quieter, turn its volume knob. |
 | News | Where the news comes from. Sources are grouped by language, and include Chinese sources from China, Singapore, Malaysia, Taiwan and Hong Kong, and Indonesian sources such as Kompas, ANTARA, detikNews and CNN Indonesia. You can also have the headlines translated into your language, choose a one-line summary or a short bulletin, and pick the character who reads you the news. |
@@ -78,7 +79,7 @@ The setup screen closes by itself after 10 minutes if no phone is connected. To 
 | Tap | Go to the next page. |
 | Tap twice quickly | Go back to the eyes. Momowo is happy to see you. |
 | Hold for about 1 second | Do something on the page you're on (see below). |
-| Hold for 2 seconds | On the focus page: start a breathing exercise, or reset the timer. |
+| Hold for 2 seconds | On the focus page: start a breathing exercise, or reset the timer. On the alarm page: start or cancel the nap timer. |
 | Hold for 6 seconds | Open phone setup (the square code). |
 
 **Holding for about 1 second on each page:**
@@ -89,6 +90,7 @@ The setup screen closes by itself after 10 minutes if no phone is connected. To 
 - **Weather** and **News:** checks for the latest.
 - **Quote:** shows a new quote.
 - **Focus:** starts, pauses or carries on the timer.
+- **Alarm:** switches all your alarms off or on again (handy for holidays). While the alarm is snoozing, it says "I'm up" and stops the alarm. During a nap, it cancels the nap.
 
 ---
 
@@ -172,6 +174,30 @@ For **famous people**, the AI picks a real quote by someone on your list. It is 
 
 A focus timer (also called a Pomodoro timer). Hold to start. When your focus time ends, Momowo starts your break, and every fourth break is longer. During a break, a breathing circle guides you: breathe in for 4 seconds, hold for 4, and breathe out for 6. When the timer isn't running, hold for 2 seconds to do the breathing exercise on its own.
 
+### Alarm
+
+Shows your next alarm and how long until it rings, for example *Tomorrow - in 7h 12m*. If it's crossed out, your alarms are switched off: hold the touch spot to switch them on. Set the alarm times on the phone settings page (see section 3).
+
+**The nap timer:** hold the touch spot for 2 seconds on this page. Momowo counts down your nap (20 minutes unless you chose another length) and wakes you the same gentle way. Short naps of about 20 minutes tend to leave you refreshed rather than groggy. Hold again to cancel.
+
+**When the alarm rings:**
+
+| What you do | What happens |
+|---|---|
+| Tap the touch spot (or bump the case) | Snooze. It rings again after the snooze time you chose (9 minutes unless you changed it). |
+| Hold the touch spot for 2 seconds | Stop the alarm. A bar on the screen fills up while you hold. |
+| Shake Momowo 3 times | Stop the alarm, if you chose *Shake me 3 times* on the settings page. The dots on the screen show how many shakes you've done. Then holding the touch spot doesn't stop it, and bumps don't snooze it: getting up and moving is the point! |
+
+When you stop it, Momowo is happy to see you, says good morning and tells you the day's weather.
+
+**The melody:** Momowo's alarm plays *Momowo Morning*, a tune written just for it. Sleep research from RMIT University (2020) linked melodic alarms with feeling less groggy than harsh beeps, and the researchers suggest a tune you could hum, with a steady beat that's neither too fast nor too slow. So *Momowo Morning* is a cheerful, hummable tune at a walking pace that climbs up like a sunrise, and it starts gently: at first only its opening, softly and with long pauses. After 40 seconds it plays the whole tune a little louder, and after 90 seconds it plays faster at full volume with a bouncy ending, and the screen flashes on the beat. The volume knob sets how loud the loudest part is.
+
+**Good to know:**
+
+- The alarm rings even when sounds are switched off, at night and during a focus session.
+- Momowo needs to know the time (from Wi-Fi, the phone settings page or its clock chip), and it must be plugged in: it has no battery.
+- If nobody answers, it rings for 10 minutes, snoozes, and tries again up to three more times.
+
 ---
 
 ## 7. Playing games
@@ -208,7 +234,7 @@ Momowo remembers your best scores. During a game, hold the touch spot to give Mo
 
 ## 8. At night
 
-Between the bedtime and wake-up times you set, Momowo gets sleepy: its eyes close, the screen dims, and it stays quiet. After a while the screen switches off completely. Touch it and it wakes up for a moment. In the morning it wakes up with a little sound.
+Between the bedtime and wake-up times you set, Momowo gets sleepy: its eyes close, the screen dims, and it stays quiet. After a while the screen switches off completely. Touch it and it wakes up for a moment. In the morning it wakes up with a little sound. Your wake-up alarm still rings at night (see *Alarm* in section 6).
 
 ---
 
@@ -333,12 +359,13 @@ Building or repairing a Momowo yourself? See the separate **Momowo Build Guide**
 | 快速点两下 | 回到眼睛页 |
 | 按住约 1 秒 | 当前页的功能：眼睛页是拍拍它，时钟页切换 12/24 小时，天气和新闻页刷新，名言页换一句，专注页开始或暂停 |
 | 在专注页按住 2 秒 | 开始呼吸练习，或重置计时 |
+| 在闹钟页按住约 1 秒 / 2 秒 | 开关所有闹钟 / 开始或取消小睡计时 |
 | 按住 6 秒 | 打开手机设置 |
 | 拍拍外壳 / 摇一摇 / 倾斜 | 拍拍会有爱心；摇一摇会头晕（名言页会换一句）；倾斜时眼睛跟着看过去 |
 
 ### 4. 各个页面
 
-依次是：**眼睛**（心情、问候和小提示）、**时钟**（开启伊斯兰历时轮流显示礼拜时间）、**日历**（农历、伊斯兰历、佛历、印度历、犹太历及节假日）、**天气**（含空气质量）、**新闻**（由你选的角色播报）、**名言**（原文显示，再显示翻译或解释）和**专注计时**（含呼吸练习）。90 秒后会自动回到眼睛页。为了保护屏幕，脸会不时轻微移动，20 分钟没人碰时屏幕会变暗。夜里它会睡觉、变暗并保持安静。
+依次是：**眼睛**（心情、问候和小提示）、**时钟**（开启伊斯兰历时轮流显示礼拜时间）、**日历**（农历、伊斯兰历、佛历、印度历、犹太历及节假日）、**天气**（含空气质量）、**新闻**（由你选的角色播报）、**名言**（原文显示，再显示翻译或解释）、**专注计时**（含呼吸练习）和**闹钟**（下一个闹钟和小睡计时）。闹钟在手机设置页设定，最多三个，可选星期几。闹钟用 Momowo 自己的旋律，由轻到响；关掉声音、夜里或专注时也会响。响铃时：轻触（或拍外壳）是贪睡，按住头顶 2 秒关闭（也可在设置里改成摇 3 下关闭）。90 秒后会自动回到眼睛页。为了保护屏幕，脸会不时轻微移动，20 分钟没人碰时屏幕会变暗。夜里它会睡觉、变暗并保持安静。
 
 ### 5. 小游戏
 
@@ -393,12 +420,13 @@ Building or repairing a Momowo yourself? See the separate **Momowo Build Guide**
 | 快速點兩下 | 回到眼睛頁 |
 | 按住約 1 秒 | 目前頁面的功能：眼睛頁是拍拍它，時鐘頁切換 12/24 小時，天氣和新聞頁更新，名言頁換一句，專注頁開始或暫停 |
 | 在專注頁按住 2 秒 | 開始呼吸練習，或重設計時 |
+| 在鬧鐘頁按住約 1 秒 / 2 秒 | 開關所有鬧鐘 / 開始或取消小睡計時 |
 | 按住 6 秒 | 打開手機設定 |
 | 拍拍外殼 / 搖一搖 / 傾斜 | 拍拍會有愛心；搖一搖會頭暈（名言頁會換一句）；傾斜時眼睛跟著看過去 |
 
 ### 4. 各個頁面
 
-依序是：**眼睛**（心情、問候和小提示）、**時鐘**（開啟伊斯蘭曆時輪流顯示禮拜時間）、**日曆**（農曆、伊斯蘭曆、佛曆、印度曆、猶太曆及假日）、**天氣**（含空氣品質）、**新聞**（由你選的角色播報）、**名言**（先顯示原文，再顯示翻譯或解釋）和**專注計時**（含呼吸練習）。90 秒後會自動回到眼睛頁。為了保護螢幕，臉會不時輕微移動，20 分鐘沒人碰時螢幕會變暗。晚上它會睡覺、變暗並保持安靜。
+依序是：**眼睛**（心情、問候和小提示）、**時鐘**（開啟伊斯蘭曆時輪流顯示禮拜時間）、**日曆**（農曆、伊斯蘭曆、佛曆、印度曆、猶太曆及假日）、**天氣**（含空氣品質）、**新聞**（由你選的角色播報）、**名言**（先顯示原文，再顯示翻譯或解釋）、**專注計時**（含呼吸練習）和**鬧鐘**（下一個鬧鐘和小睡計時）。鬧鐘在手機設定頁設定，最多三個，可選星期幾。鬧鐘用 Momowo 自己的旋律，由輕到響；關掉聲音、晚上或專注時也會響。響鈴時：輕觸（或拍外殼）是貪睡，按住頭頂 2 秒關閉（也可在設定裡改成搖 3 下關閉）。90 秒後會自動回到眼睛頁。為了保護螢幕，臉會不時輕微移動，20 分鐘沒人碰時螢幕會變暗。晚上它會睡覺、變暗並保持安靜。
 
 ### 5. 小遊戲
 
@@ -453,12 +481,13 @@ Nanti, dari Wi-Fi yang sama, buka alamat yang tampil di layar Momowo (misalnya `
 | Ketuk dua kali cepat | Kembali ke mata |
 | Tahan sekitar 1 detik | Aksi halaman: mengelus Momowo, ganti jam 12/24, perbarui cuaca atau berita, kutipan baru, mulai atau jeda fokus |
 | Tahan 2 detik di halaman fokus | Latihan napas, atau atur ulang timer |
+| Tahan ±1 detik / 2 detik di halaman alarm | Nyalakan/matikan semua alarm / mulai atau batalkan timer tidur siang |
 | Tahan 6 detik | Buka pengaturan ponsel |
 | Tepuk, goyang, miringkan | Tepukan dapat hati; goyang membuatnya pusing (di halaman kutipan: kutipan baru); dimiringkan, matanya ikut melirik |
 
 ### 4. Halaman
 
-Urutannya: **Mata** (perasaan, salam dan info singkat), **Jam** (dengan waktu salat jika kalender Islam aktif), **Kalender** (Imlek, Hijriah, Buddha, Hindu, Yahudi dan hari libur), **Cuaca** (termasuk kualitas udara), **Berita** (dibacakan tokoh pilihan Anda), **Kutipan** (bahasa asli, lalu terjemahan atau penjelasan) dan **Fokus** (dengan latihan napas). Setelah 90 detik Momowo kembali ke mata. Untuk menjaga layar, wajahnya bergeser sedikit dari waktu ke waktu dan layar meredup jika 20 menit tidak disentuh. Malam hari Momowo tidur, meredup dan diam.
+Urutannya: **Mata** (perasaan, salam dan info singkat), **Jam** (dengan waktu salat jika kalender Islam aktif), **Kalender** (Imlek, Hijriah, Buddha, Hindu, Yahudi dan hari libur), **Cuaca** (termasuk kualitas udara), **Berita** (dibacakan tokoh pilihan Anda), **Kutipan** (bahasa asli, lalu terjemahan atau penjelasan) , **Fokus** (dengan latihan napas) dan **Alarm** (alarm berikutnya dan timer tidur siang). Atur hingga tiga alarm dan harinya di halaman pengaturan ponsel. Alarm memakai melodi Momowo sendiri yang mulai pelan lalu makin keras, dan tetap berbunyi walau suara dimatikan, di malam hari atau saat fokus. Saat berbunyi: ketuk (atau tepuk casing) untuk menunda, tahan kepala 2 detik untuk mematikan (atau pilih goyang 3 kali di pengaturan). Setelah 90 detik Momowo kembali ke mata. Untuk menjaga layar, wajahnya bergeser sedikit dari waktu ke waktu dan layar meredup jika 20 menit tidak disentuh. Malam hari Momowo tidur, meredup dan diam.
 
 ### 5. Permainan
 
@@ -513,12 +542,13 @@ Später öffnen Sie im selben WLAN die Adresse, die Momowo anzeigt (zum Beispiel
 | Zweimal schnell tippen | Zurück zu den Augen |
 | Etwa 1 Sekunde halten | Aktion der Seite: Momowo streicheln, 12/24 Stunden, Wetter oder Nachrichten aktualisieren, neues Zitat, Fokus starten oder pausieren |
 | Auf der Fokusseite 2 Sekunden halten | Atemübung, oder Timer zurücksetzen |
+| Auf der Weckerseite ca. 1 s / 2 s halten | Alle Wecker an/aus / Nickerchen-Timer starten oder abbrechen |
 | 6 Sekunden halten | Einstellungen am Handy öffnen |
 | Gehäuse antippen, schütteln, kippen | Antippen gibt Herzchen; Schütteln macht ihn schwindlig (auf der Zitatseite: neues Zitat); beim Kippen schauen die Augen mit |
 
 ### 4. Die Seiten
 
-Der Reihe nach: **Augen** (Stimmung, Grüße, kurze Infos), **Uhr** (mit Gebetszeiten, wenn der islamische Kalender an ist), **Kalender** (chinesisch, islamisch, buddhistisch, hinduistisch, jüdisch und Feiertage), **Wetter** (mit Luftqualität), **Nachrichten** (gelesen von einer Figur Ihrer Wahl), **Zitat** (im Original, dann Übersetzung oder Erklärung) und **Fokus** (mit Atemübung). Nach 90 Sekunden kehrt Momowo zu den Augen zurück. Zum Schutz des Bildschirms wandert das Gesicht ab und zu ein wenig, und nach 20 Minuten ohne Berührung wird der Bildschirm dunkler. Nachts schläft Momowo, wird dunkel und bleibt still.
+Der Reihe nach: **Augen** (Stimmung, Grüße, kurze Infos), **Uhr** (mit Gebetszeiten, wenn der islamische Kalender an ist), **Kalender** (chinesisch, islamisch, buddhistisch, hinduistisch, jüdisch und Feiertage), **Wetter** (mit Luftqualität), **Nachrichten** (gelesen von einer Figur Ihrer Wahl), **Zitat** (im Original, dann Übersetzung oder Erklärung) , **Fokus** (mit Atemübung) und **Wecker** (nächste Weckzeit und Nickerchen-Timer). Bis zu drei Weckzeiten und ihre Wochentage stellen Sie auf der Einstellungsseite am Handy ein. Der Wecker spielt Momowos eigene Melodie, leise beginnend und immer lauter, und klingelt auch bei ausgeschalteten Tönen, nachts und während einer Fokusphase. Beim Klingeln: Tippen (oder ans Gehäuse klopfen) schlummert, 2 Sekunden den Kopf halten schaltet ihn aus (oder, falls so eingestellt, 3-mal schütteln). Nach 90 Sekunden kehrt Momowo zu den Augen zurück. Zum Schutz des Bildschirms wandert das Gesicht ab und zu ein wenig, und nach 20 Minuten ohne Berührung wird der Bildschirm dunkler. Nachts schläft Momowo, wird dunkel und bleibt still.
 
 ### 5. Spiele
 
@@ -573,12 +603,13 @@ Plus tard, sur le même Wi-Fi, ouvrez dans le navigateur l’adresse affichée p
 | Deux touches rapides | Retour aux yeux |
 | Appui d’environ 1 seconde | Action de la page : caresser Momowo, 12/24 h, actualiser la météo ou les actualités, nouvelle citation, lancer ou mettre en pause la concentration |
 | Appui de 2 secondes sur la page concentration | Exercice de respiration, ou remise à zéro |
+| Appui d’environ 1 s / 2 s sur la page réveil | Activer ou couper tous les réveils / lancer ou annuler la sieste |
 | Appui de 6 secondes | Ouvrir les réglages sur le téléphone |
 | Tapoter, secouer, incliner | Tapoter donne des cœurs ; secouer lui donne le tournis (sur la page citation : nouvelle citation) ; incliné, il regarde dans ce sens |
 
 ### 4. Les pages
 
-Dans l’ordre : **Yeux** (humeur, salutations, infos), **Horloge** (avec les heures de prière si le calendrier islamique est activé), **Calendrier** (chinois, islamique, bouddhiste, hindou, juif et jours fériés), **Météo** (avec la qualité de l’air), **Actualités** (lues par le personnage de votre choix), **Citation** (dans la langue d’origine, puis traduction ou explication) et **Concentration** (avec respiration guidée). Après 90 secondes, Momowo revient aux yeux. Pour protéger l’écran, le visage se déplace un peu de temps en temps et l’écran baisse après 20 minutes sans contact. La nuit, Momowo dort, baisse l’écran et reste silencieux.
+Dans l’ordre : **Yeux** (humeur, salutations, infos), **Horloge** (avec les heures de prière si le calendrier islamique est activé), **Calendrier** (chinois, islamique, bouddhiste, hindou, juif et jours fériés), **Météo** (avec la qualité de l’air), **Actualités** (lues par le personnage de votre choix), **Citation** (dans la langue d’origine, puis traduction ou explication) , **Concentration** (avec respiration guidée) et **Réveil** (prochain réveil et minuteur de sieste). Réglez jusqu’à trois réveils et leurs jours sur la page de réglages du téléphone. Le réveil joue la mélodie de Momowo, douce au début puis plus forte, et sonne même si les sons sont coupés, la nuit ou pendant une concentration. Quand il sonne : une touche (ou une tape sur le boîtier) active le rappel, un appui de 2 secondes sur la tête l’arrête (ou 3 secousses, si vous l’avez choisi). Après 90 secondes, Momowo revient aux yeux. Pour protéger l’écran, le visage se déplace un peu de temps en temps et l’écran baisse après 20 minutes sans contact. La nuit, Momowo dort, baisse l’écran et reste silencieux.
 
 ### 5. Jeux
 
@@ -633,12 +664,13 @@ Dans la section **IA** de la page de réglages, choisissez un service (Claude, C
 | すばやく 2 回タップ | 目の画面にもどる |
 | 約 1 秒押す | そのページの操作：なでる、12/24 時間表示の切り替え、天気やニュースの更新、新しい名言、集中タイマーの開始・一時停止 |
 | 集中ページで 2 秒押す | 呼吸練習、またはタイマーのリセット |
+| アラームページで約 1 秒 / 2 秒押す | 全アラームのオン/オフ / 仮眠タイマーの開始・取消 |
 | 6 秒押す | スマホ設定を開く |
 | ケースをたたく・振る・傾ける | たたくとハート、振ると目が回る（名言ページでは新しい名言）、傾けるとその向きを見る |
 
 ### 4. ページ
 
-順番に：**目**（気分、あいさつ、ひとこと）、**時計**（イスラム暦をオンにすると礼拝時刻も）、**カレンダー**（旧暦、イスラム暦、仏暦、ヒンドゥー暦、ユダヤ暦と祝日）、**天気**（空気の質つき）、**ニュース**（選んだキャラクターが読み上げ）、**名言**（原文のあとに訳か解説）、**集中**（呼吸ガイドつき）。90 秒たつと目の画面にもどります。画面を長持ちさせるため、顔はときどき少し動き、20 分さわらないと画面が暗くなります。夜は眠って暗くなり、静かにしています。
+順番に：**目**（気分、あいさつ、ひとこと）、**時計**（イスラム暦をオンにすると礼拝時刻も）、**カレンダー**（旧暦、イスラム暦、仏暦、ヒンドゥー暦、ユダヤ暦と祝日）、**天気**（空気の質つき）、**ニュース**（選んだキャラクターが読み上げ）、**名言**（原文のあとに訳か解説）、**集中**（呼吸ガイドつき）、**アラーム**（次のアラームと仮眠タイマー）。アラームはスマホの設定ページで3つまで、曜日も選べます。Momowo オリジナルのメロディが小さな音から少しずつ大きくなり、音をオフにしていても、夜や集中中でも鳴ります。鳴っているとき：タップ（またはケースをトン）でスヌーズ、頭を2秒押すと止まります（設定で「3回振る」にもできます）。90 秒たつと目の画面にもどります。画面を長持ちさせるため、顔はときどき少し動き、20 分さわらないと画面が暗くなります。夜は眠って暗くなり、静かにしています。
 
 ### 5. ゲーム
 
@@ -693,12 +725,13 @@ Más adelante, en la misma wifi, abre en el navegador la dirección que muestra 
 | Dos toques rápidos | Volver a los ojos |
 | Mantener 1 segundo aprox. | Acción de la página: acariciar a Momowo, 12/24 h, actualizar el tiempo o las noticias, nueva frase, iniciar o pausar la concentración |
 | Mantener 2 segundos en la página de concentración | Ejercicio de respiración, o reiniciar el temporizador |
+| Mantener 1 s / 2 s en la página de alarma | Encender o apagar todas las alarmas / empezar o cancelar la siesta |
 | Mantener 6 segundos | Abrir los ajustes en el móvil |
 | Dar golpecitos, agitar, inclinar | Los golpecitos dan corazones; agitarlo lo marea (en la página de frases: frase nueva); al inclinarlo mira hacia ese lado |
 
 ### 4. Las páginas
 
-En orden: **Ojos** (ánimo, saludos y avisos), **Reloj** (con horarios de oración si el calendario islámico está activado), **Calendario** (chino, islámico, budista, hindú, judío y festivos), **Tiempo** (con calidad del aire), **Noticias** (leídas por el personaje que elijas), **Frase** (en su idioma original y luego traducción o explicación) y **Concentración** (con respiración guiada). A los 90 segundos vuelve a los ojos. Para cuidar la pantalla, la cara se mueve un poco de vez en cuando y la pantalla se atenúa tras 20 minutos sin tocarlo. De noche Momowo duerme, se atenúa y se queda en silencio.
+En orden: **Ojos** (ánimo, saludos y avisos), **Reloj** (con horarios de oración si el calendario islámico está activado), **Calendario** (chino, islámico, budista, hindú, judío y festivos), **Tiempo** (con calidad del aire), **Noticias** (leídas por el personaje que elijas), **Frase** (en su idioma original y luego traducción o explicación) , **Concentración** (con respiración guiada) y **Alarma** (la próxima alarma y el temporizador de siesta). Pon hasta tres alarmas y sus días en la página de ajustes del móvil. La alarma toca la melodía propia de Momowo, que empieza suave y va creciendo, y suena aunque los sonidos estén apagados, de noche o durante una concentración. Cuando suena: un toque (o un golpecito en la caja) la pospone y mantener la cabeza 2 segundos la para (o agitarlo 3 veces, si lo elegiste). A los 90 segundos vuelve a los ojos. Para cuidar la pantalla, la cara se mueve un poco de vez en cuando y la pantalla se atenúa tras 20 minutos sin tocarlo. De noche Momowo duerme, se atenúa y se queda en silencio.
 
 ### 5. Juegos
 
